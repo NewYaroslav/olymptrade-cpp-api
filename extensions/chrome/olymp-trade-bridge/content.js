@@ -6,13 +6,8 @@ var api_socket;
 var port;
 
 var is_socket = false;
-var is_last_socket = false;
-
 var is_api_socket = false;
-var is_last_api_socket = false;
-
 var is_error = false;
-var is_last_error = false;
 
 function getUuid() {
     return(Date.now().toString(36)+Math.random().toString(36).substr(2,12)).toUpperCase()
@@ -103,7 +98,8 @@ function injected_main() {
 				if (4 == rt.readyState) {
 					if (200 != rt.status) {
 						console.log(rt.status + ": " + rt.statusText);
-						api_socket.send('{"connection_status":"error"}');
+						//api_socket.send('{"connection_status":"error"}');
+						api_socket.close();
 						is_error = true;
 					} else {
 						if(is_api_socket) {
@@ -147,7 +143,7 @@ function injected_main() {
 				var account_id = api_message.account_id;
 				var rt = new XMLHttpRequest;
 				var upload = '{"group":"' + group + '","account_id":' + account_id + '}';
-				console.log("json_upload " + upload);
+				console.log("upload: " + upload);
 				
 				rt.open("POST", "https://api.olymptrade.com/v4/user/set-money-group", !0), 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -159,7 +155,7 @@ function injected_main() {
 				rt.onreadystatechange = function() {
 					if (4 == rt.readyState) {
 						if (200 != rt.status) {
-							api_socket.send('{"connection_status":"error"}');
+							api_socket.send('{"set-money-group":"error"}');
 							console.log(rt.status + ": " + rt.statusText);
 							is_error = true;
 						} else {
@@ -169,7 +165,41 @@ function injected_main() {
 					}
 				}
 			} else
-			/* если была получена не коамнда API, просто отсылаем данные */
+			/* загрузить исторические данные */
+			if(api_message.cmd == "candle-history") {
+				var size = api_message.size;
+				var pair = api_message.pair;
+				var from = api_message.from;
+				var to = api_message.to;
+				var limit = api_message.limit;
+				var rt = new XMLHttpRequest;
+				var upload = '{"pair":"' + pair + '","size":' + size + ',"from":'+ from + ',"to":' + to + ',"limit":' + limit + '}'
+				console.log("upload: " + upload);
+				
+				rt.open("POST", "https://api.olymptrade.com/v3/cabinet/candle-history", !0), 
+				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+				rt.setRequestHeader('Accept', 'application/json, text/plain, */*');
+				rt.setRequestHeader('X-Request-Type', 'Api-Request');
+				rt.setRequestHeader('X-Request-Project', 'bo');
+				rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+				rt.send(upload), 
+				rt.onreadystatechange = function() {
+					if (4 == rt.readyState) {
+						if (500 == rt.status) {
+							api_socket.send('{"data":[]}');
+						} else
+						if (200 != rt.status) {
+							api_socket.send('{"candle-history":"error"}');
+							console.log(rt.status + ": " + rt.statusText);
+							is_error = true;
+						} else {
+							console.log("rt.responseText " + rt.responseText);
+							api_socket.send(rt.responseText);
+						}
+					}
+				}
+			} else
+			/* если была получена не команда API, просто отсылаем данные */
 			if(is_socket) {
 				socket.send(t.data);
 			}
@@ -179,11 +209,8 @@ function injected_main() {
 			is_api_socket = false;
         }
     }
-	
-	//connect_api();
-	
+
 	chrome.storage.local.get("olymptradeapiwsport", function(result) {
-		//var currentColor = 
 		if(result.olymptradeapiwsport) {
 			port = result.olymptradeapiwsport; 
 		} else {
@@ -196,12 +223,14 @@ function injected_main() {
 	chrome.storage.onChanged.addListener(function(changes, namespace) {
 		for (var key in changes) {
 			var storageChange = changes[key];
-			console.log('Storage key "%s" in namespace "%s" changed. ' +
-			'Old value was "%s", new value is "%s".',
-			key,
-			namespace,
-			storageChange.oldValue,
-			storageChange.newValue);
+			
+			//console.log('Storage key "%s" in namespace "%s" changed. ' +
+			//'Old value was "%s", new value is "%s".',
+			//key,
+			//namespace,
+			//storageChange.oldValue,
+			//storageChange.newValue);
+			
 			if(key == "olymptradeapiwsport") {
 				port = storageChange.newValue;
 				if(is_api_socket) {
@@ -212,24 +241,7 @@ function injected_main() {
 			}
 		}
 	});
-/*
-	var rt = new XMLHttpRequest;
-	console.log("broker_domain " + broker_domain);
-    rt.open("GET", "https://" + broker_domain + "/platform/state", !0), rt.send(), rt.onreadystatechange = function() {
-		console.log("Пробуем GET!");
-        if (4 == rt.readyState) {
-            if (200 != rt.status) {
-				console.log(rt.status + ": " + rt.statusText);
-				is_error = true;
-			} else {
-				//console.log("Получены данные" + rt.responseText), 
-				mes = JSON.parse(rt.responseText), 
-				console.log(mes);
-				//connect_api();
-            }
-        }
-    }
-	*/
+
 }
 
 function update_second() { 

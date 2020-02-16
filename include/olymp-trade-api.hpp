@@ -102,8 +102,6 @@ namespace olymp_trade {
         std::atomic<bool> is_open_connect;
         std::atomic<bool> is_error;
 
-        //std::atomic<double> server_time = ATOMIC_VAR_INIT(0.0);
-
         /* все для расчета смещения времени */
         const uint32_t array_offset_timestamp_size = 256;
         std::array<xtime::ftimestamp_t, 256> array_offset_timestamp;    /**< Массив смещения метки времени */
@@ -136,7 +134,7 @@ namespace olymp_trade {
             offset_timestamp = last_offset_timestamp_sum/
                 (xtime::ftimestamp_t)array_offset_timestamp_size;
         }
-
+        /* */
 
         std::mutex sub_uid_mutex;
         std::string sub_uid;
@@ -183,6 +181,11 @@ namespace olymp_trade {
         /* для потока котировок */
         std::mutex map_candles_mutex;
         std::map<std::string, std::map<xtime::timestamp_t, CANDLE_TYPE>> map_candles;
+
+        std::mutex hist_candles_mutex;
+        std::vector<CANDLE_TYPE> hist_candles;
+        std::atomic<bool> is_hist_candles = ATOMIC_VAR_INIT(false);
+        std::atomic<bool> is_error_hist_candles = ATOMIC_VAR_INIT(false);
 
         std::string format(const char *fmt, ...) {
             va_list args;
@@ -353,10 +356,48 @@ namespace olymp_trade {
             return OK;
         };
 
+        bool parse_candle_history(json &j) {
+            if(j.find("data")!= j.end() && j["data"].is_array()) {
+                std::vector<CANDLE_TYPE> temp_candles;
+                bool is_data = false;
+                try {
+                    for(size_t i = 0; i < j["data"].size(); ++i) {
+                        const double open = j["data"][i]["open"];
+                        const double high = j["data"][i]["high"];
+                        const double low = j["data"][i]["low"];
+                        const double close = j["data"][i]["close"];
+                        xtime::timestamp_t timestamp = j["data"][i]["time"];
+                        temp_candles.push_back(CANDLE_TYPE(open, high, low, close, timestamp));
+                    }
+                    is_data = true;
+                }
+                catch(const json::parse_error& e) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json::parse_error, what: " << e.what()
+                       << " exception_id: " << e.id << std::endl;
+                }
+                catch(json::out_of_range& e) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json::out_of_range, what:" << e.what()
+                       << " exception_id: " << e.id << std::endl;
+                }
+                catch(json::type_error& e) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json::type_error, what:" << e.what()
+                       << " exception_id: " << e.id << std::endl;
+                }
+                catch(...) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json error" << std::endl;
+                }
+                if(is_data) {
+                    std::lock_guard<std::mutex> lock(hist_candles_mutex);
+                    hist_candles = temp_candles;
+                    is_hist_candles = true;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         bool parse_user(json &j) {
-            // {"data":{"group":"demo","account_id":0}}
-            //std::cout << j << std::endl;
-            if(j.find("data")!= j.end()) {
+            if(j.find("data")!= j.end() && !j["data"].is_array()) {
                 if(j["data"]["group"] == "demo") {
                     is_demo = true;
                     return true;
@@ -626,14 +667,19 @@ namespace olymp_trade {
                                     if(parse_olymptrade(j)) break;
                                     if(parse_platform(j)) break;
                                     if(parse_user(j)) break;
+                                    if(parse_candle_history(j)) break;
                                     if(j["connection_status"] == "ok") {
                                         is_connected = true;
                                         is_error = false;
                                         break;
-                                    }
+                                    } else
                                     if(j["connection_status"] == "error") {
                                         is_error = true;
                                         is_connected = false;
+                                        break;
+                                    } else
+                                    if(j["candle-history"] == "error") {
+                                        is_error_hist_candles = true;
                                         break;
                                     }
                                     break;
@@ -853,6 +899,7 @@ namespace olymp_trade {
                         timestamp_start = 0;
                     }
                 }
+                if(is_command_server_stop) return false;
             }
             return is_connected;
         }
@@ -1062,6 +1109,68 @@ namespace olymp_trade {
                 api_bet_id,
                 callback);
         }
+
+
+        /** \brief Получить минимальную метку времени выбраного символа
+         *
+         * \param symbol_name Имя символа
+         * \return Вернет метку времени, если символ есть и нет ошибок подключения
+         */
+        xtime::timestamp_t get_min_timestamp_symbol(const std::string &symbol_name) {
+            if(!is_connected) return 0;
+            std::lock_guard<std::mutex> lock(symbols_spec_mutex);
+            auto it_spec = symbols_spec.find(symbol_name);
+            if(it_spec == symbols_spec.end()) return 0;
+            return it_spec->second.min_timestamp;
+        }
+
+        /** \brief Получить исторические данные
+         */
+        int get_historical_data(
+                const std::string &symbol_name,
+                xtime::timestamp_t date_start,
+                xtime::timestamp_t date_stop,
+                const uint32_t timeframe,
+                std::vector<CANDLE_TYPE> &candles) {
+            if(!is_connected) return AUTHORIZATION_ERROR;
+            uint32_t limit = 0;
+            if(timeframe == 60) {
+                date_start = xtime::get_first_timestamp_minute(date_start);
+                date_stop = xtime::get_first_timestamp_minute(date_stop);
+                limit = ((date_stop - date_start) / xtime::SECONDS_IN_MINUTE) + 1;
+            }
+            json j;
+            j["cmd"] = "candle-history";
+            j["pair"] = symbol_name;
+            j["size"] = timeframe;
+            j["from"] = date_start;
+            j["to"] = date_stop;
+            j["limit"] = limit;
+            is_error_hist_candles = false;
+            {
+                std::lock_guard<std::mutex> lock(hist_candles_mutex);
+                hist_candles.clear();
+                is_hist_candles = false;
+            }
+            send(j.dump());
+            uint32_t tick = 0;
+            while(true) {
+                if(is_error_hist_candles) return DATA_NOT_AVAILABLE;
+                {
+                    std::lock_guard<std::mutex> lock(hist_candles_mutex);
+                    if(is_hist_candles) {
+                        candles = hist_candles;
+                        return OK;
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                if(is_command_server_stop) return STRANGE_PROGRAM_BEHAVIOR;
+                ++tick;
+                if(tick >= xtime::SECONDS_IN_MINUTE) break;
+            }
+            return DATA_NOT_AVAILABLE;
+        }
+
     };
 }
 

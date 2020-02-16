@@ -24,8 +24,11 @@
 #ifndef OLYMP_TRADE_API_COMMON_HPP_INCLUDED
 #define OLYMP_TRADE_API_COMMON_HPP_INCLUDED
 
+#include <iostream>
 #include <xtime.hpp>
 #include "base36.h"
+#include <mutex>
+#include <sstream>
 
 namespace olymp_trade_common {
 
@@ -143,6 +146,77 @@ namespace olymp_trade_common {
         INVALID_SYMBOL = -18,
         SYMBOL_LOCK = -19,
     };
+
+    class PrintThread: public std::ostringstream {
+    private:
+        static inline std::mutex _mutexPrint;
+
+    public:
+        PrintThread() = default;
+
+        ~PrintThread() {
+            std::lock_guard<std::mutex> guard(_mutexPrint);
+            std::cout << this->str();
+        }
+    };
+
+    /** \brief Напечатать линию
+     * \param message Сообщение
+     */
+    void print_line(std::string message) {
+		static uint32_t message_size = 0;
+		if(message_size > 0) {
+			for(size_t i = 0; i < message_size; ++i) {
+				PrintThread{} << " ";
+			}
+			PrintThread{} << "\r";
+		}
+		std::cout.width(message.size());
+		PrintThread{} << message << "\r";
+		message_size = message.size();
+	}
+
+	/* обработать все аргументы */
+    bool process_arguments(
+        const int argc,
+        char **argv,
+        std::function<void(
+            const std::string &key,
+            const std::string &value)> f) noexcept {
+        if(argc <= 1) return false;
+        bool is_error = true;
+        for(int i = 1; i < argc; ++i) {
+            std::string key = std::string(argv[i]);
+            if(key.size() > 0 && (key[0] == '-' || key[0] == '/')) {
+                uint32_t delim_offset = 0;
+                if(key.size() > 2 && (key.substr(2) == "--") == 0) delim_offset = 1;
+                std::string value;
+                if((i + 1) < argc) value = std::string(argv[i + 1]);
+                is_error = false;
+                f(key.substr(delim_offset), value);
+            }
+        }
+        return !is_error;
+    }
+
+    /** \brief Разобрать строку списка
+     *
+     * \param value Список
+     * \param elemet_list Элементы списка
+     */
+    void parse_list(std::string value, std::vector<std::string> &elemet_list) noexcept {
+        if(value.back() != ',') value += ",";
+        std::size_t start_pos = 0;
+        while(true) {
+            std::size_t found_beg = value.find_first_of(",", start_pos);
+            if(found_beg != std::string::npos) {
+                std::size_t len = found_beg - start_pos;
+                if(len > 0)
+                    elemet_list.push_back(value.substr(start_pos, len));
+                start_pos = found_beg + 1;
+            } else break;
+        }
+    }
 }
 
 #endif // OLYMP_TRADE_API_COMMON_HPP_INCLUDED
