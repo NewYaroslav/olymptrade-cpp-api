@@ -14,10 +14,6 @@ var is_last_api_socket = false;
 var is_error = false;
 var is_last_error = false;
 
-//function send_data()  {
-//	socket.send('[{"t":2,"e":23,"d":[{"amount":'+amount+',"dir":"'+trend+'","pair":"'+pair+'","pos":0,"source":"platform","group":"'+group+'","duration":'+time+"}]}]");
-//}
-
 function getUuid() {
     return(Date.now().toString(36)+Math.random().toString(36).substr(2,12)).toUpperCase()
 }
@@ -237,26 +233,17 @@ function injected_main() {
 }
 
 function update_second() { 
-	//console.log("СЕКУНДОЧШКУ А! " + getUuid());
-	//console.log("СЕКУНДОЧШКУ А! " + Date.now());
-	//console.log("СЕКУНДОЧШКУ А! " + Date.now().toString(36));
-	//console.log("СЕКУНДОЧШКУ А! " + Math.random().toString(36).substr(2,12));
+
 }
 
 function update_10_second() { 
-	console.log("СЕКУНДОЧШКУ А 10!");
-	
-	if(is_socket) {
-		//socket.send('[{"t":2,"e":23,"uuid":"' + getUuid() + '","d":[{"amount":300,"dir":"up","pair":"Bitcoin","cat":"digital","pos":0,"source":"platform","account_id":0,"group":"demo","timestamp":' + Date.now() + ',"duration":180}]}]');
-	}
 
 }
 
-setInterval(update_second, 1000);
-setInterval(update_10_second, 10000);// запускать функцию каждую секунду
+//setInterval(update_second, 1000);
+//setInterval(update_10_second, 10000);// запускать функцию каждую секунду
 
 function try_again() {
-	console.log("try_again!");
 	injected_main()
 }
 
