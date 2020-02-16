@@ -67,7 +67,7 @@ int main() {
     /* выводим поток котировок */
     while(true) {
         olymp_trade::Candle candle = olymptrade.get_candle("LTCUSD");
-        std::cout << "LTCUSD, c: " << candle.close << " t: " << candle.timestamp << std::endl;
+        std::cout << "LTCUSD, p: " << olymptrade.get_payout("LTCUSD") << "  c: " << candle.close << " t: " << candle.timestamp << std::endl;
         std::cout
             << "d: " << olymptrade.demo_account()
             << " b: " << olymptrade.get_balance()

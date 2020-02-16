@@ -99,6 +99,7 @@ namespace olymp_trade {
         std::shared_ptr<WsServer::Connection> current_connection;
 
         std::atomic<bool> is_connected; /**< Флаг установленного соединения */
+        std::atomic<bool> is_open_connect;
         std::atomic<bool> is_error;
 
         //std::atomic<double> server_time = ATOMIC_VAR_INIT(0.0);
@@ -333,10 +334,9 @@ namespace olymp_trade {
                             } else {
                                 if(it_array_bets->second.bet_status == last_bet_status) continue;
                                 last_bet_status = it_array_bets->second.bet_status;
-                                if(get_server_timestamp() >
-                                    (it_array_bets->second.send_timestamp +
-                                    it_array_bets->second.duration +
-                                    xtime::SECONDS_IN_MINUTE)) {
+                                const uint64_t stop_timestamp = it_array_bets->second.send_timestamp + it_array_bets->second.duration + xtime::SECONDS_IN_MINUTE;
+                                const uint64_t server_timestamp = get_server_timestamp();
+                                if(server_timestamp > stop_timestamp) {
                                     bet.bet_status = BetStatus::CHECK_ERROR;
                                 } else {
                                     bet = it_array_bets->second;
@@ -371,16 +371,12 @@ namespace olymp_trade {
 
         bool parse_platform(json &j) {
             if(j.find("deal") != j.end()) {
-                //if(j.find("server_time") != j.end()) {
-                    //server_time = (double)j["server_time"];
-                //}
                 {
                     std::lock_guard<std::mutex> lock(account_mutex);
                     if(j["currency"] != nullptr) currency = j["currency"]["name"];
                     if(j["user"]["balance_demo"] != nullptr) balance_demo = (double)j["user"]["balance_demo"];
                     if(j["user"]["balance"] != nullptr) balance_real = (double)j["user"]["balance"];
                     if(j["user"]["is_demo"] != nullptr) is_demo = j["user"]["is_demo"];
-                    //std::cout << "balance_demo " << balance_demo << std::endl;
                 }
 
                 {
@@ -424,7 +420,11 @@ namespace olymp_trade {
                         for(size_t l = 0; l < j[i]["d"].size(); ++l) {
                             const std::string symbol_name = j[i]["d"][l]["p"];
                             const xtime::ftimestamp_t timestamp = j[i]["d"][l]["t"];
-                            update_offset_timestamp(timestamp);
+
+                            const xtime::ftimestamp_t pc_time = xtime::get_ftimestamp();
+                            const xtime::ftimestamp_t offset_time = timestamp - pc_time;
+                            update_offset_timestamp(offset_time);
+
                             const xtime::timestamp_t bar_timestamp = xtime::get_first_timestamp_minute(timestamp);
                             const double price = j[i]["d"][l]["q"];
 
@@ -540,10 +540,8 @@ namespace olymp_trade {
                             if(j[i]["d"][l]["account_id"] != nullptr && j[i]["d"][l]["account_id"] > 0) {
                                 if(j[i]["d"][l]["value"] != nullptr) balance_real = (double)j[i]["d"][l]["value"];
                                 account_id_real = (uint64_t)j[i]["d"][l]["account_id"];
-                                //std::cout << "account_id_real " << account_id_real << std::endl;
                             } else {
                                 if(j[i]["d"][l]["value"] != nullptr) balance_demo = (double)j[i]["d"][l]["value"];
-                                //std::cout << "balance_demo " << balance_demo << std::endl;
                             }
                         }
                     } else
@@ -609,6 +607,7 @@ namespace olymp_trade {
             server_future = std::async(std::launch::async,[&, port]() {
                 while(!is_command_server_stop) {
                     //WsServer server;
+                    is_open_connect = false;
                     {
                         std::lock_guard<std::mutex> lock(server_mutex);
                         server = std::make_shared<WsServer>();
@@ -698,6 +697,7 @@ namespace olymp_trade {
                                 current_connection = connection;
                             }
                             if(is_cout_log) std::cout << "OlympTradeApi Server: Opened connection: " << connection.get() << std::endl;
+                            is_open_connect = true;
                         };
 
                         // See RFC 6455 7.4.1. for status codes
@@ -841,8 +841,18 @@ namespace olymp_trade {
          * \return вернет true, если соединение есть, иначе произошла ошибка
          */
         inline bool wait() {
+            static xtime::timestamp_t timestamp_start = 0;
             while(!is_error && !is_connected) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                if(is_open_connect) {
+                    if(timestamp_start == 0) timestamp_start = xtime::get_timestamp();
+                    if(((int64_t)xtime::get_timestamp() - (int64_t)timestamp_start) >
+                        (int64_t)xtime::SECONDS_IN_MINUTE) {
+                        std::lock_guard<std::mutex> lock(server_mutex);
+                        if(server) server->stop();
+                        timestamp_start = 0;
+                    }
+                }
             }
             return is_connected;
         }
@@ -925,7 +935,6 @@ namespace olymp_trade {
 
         /** \brief Получить бар
          * \param symbol_name Имя символа
-         * \param offset Смещение относительно последнего бара
          * \return Бар
          */
         inline CANDLE_TYPE get_candle(const std::string &symbol_name) {
@@ -936,6 +945,19 @@ namespace olymp_trade {
             auto it_candle = map_candles[symbol_name].end();
             --it_candle;
             return it_candle->second;
+        }
+
+        /** \brief Получить процент выплаты
+         * \param symbol_name Имя символа
+         * \return Процент выплаты
+         */
+        inline double get_payout(const std::string &symbol_name) {
+            if(!is_connected) return 0.0;
+            std::lock_guard<std::mutex> lock(symbols_spec_mutex);
+            auto it_spec = symbols_spec.find(symbol_name);
+            if(it_spec == symbols_spec.end()) return 0.0;
+            if(it_spec->second.is_locked) return 0.0;
+            return it_spec->second.winperc;
         }
 
         /** \brief Открыть бинарный опцион
