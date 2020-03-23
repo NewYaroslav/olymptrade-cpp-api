@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
 
     /* выводим параметры загрузки истории */
     std::cout << "download options:" << std::endl;
-    std::cout << "download day off: true" << std::endl;
+    std::cout << "port: " << port << std::endl;
     if(is_use_day_off) {
         std::cout << "download day off: true" << std::endl;
     } else {
