@@ -27,7 +27,13 @@ int main() {
 
     {
         std::cout << "open bo ETHUSD" << std::endl;
-        int err = olymptrade.open_bo("ETHUSD", 30.0, olymp_trade::BUY, 180,
+        std::cout << "ETHUSD payout " << olymptrade.get_payout("ETHUSD") << std::endl;
+
+        double a = 0, p = 0;
+        int err = olymptrade.get_amount(a, p, "ETHUSD", 180, olymptrade.get_balance(), 0.58, 0.4);
+        std::cout << "get_amount err " << err << " a: " << a << " p: " << p << std::endl;
+
+        err = olymptrade.open_bo("ETHUSD", 30.0, olymp_trade::BUY, 180,
             [&](const olymp_trade::Bet &bet) {
             std::cout << "callback ETHUSD" << std::endl;
             if(bet.bet_status == olymp_trade::BetStatus::UNKNOWN_STATE) {

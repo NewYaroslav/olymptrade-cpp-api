@@ -996,7 +996,7 @@ namespace olymp_trade {
 
         /** \brief Получить процент выплаты
          * \param symbol_name Имя символа
-         * \return Процент выплаты
+         * \return Процент выплаты (от 0 до 1)
          */
         inline double get_payout(const std::string &symbol_name) {
             if(!is_connected) return 0.0;
@@ -1004,7 +1004,7 @@ namespace olymp_trade {
             auto it_spec = symbols_spec.find(symbol_name);
             if(it_spec == symbols_spec.end()) return 0.0;
             if(it_spec->second.is_locked) return 0.0;
-            return it_spec->second.winperc;
+            return it_spec->second.winperc  / 100.0;
         }
 
         /** \brief Открыть бинарный опцион
@@ -1125,6 +1125,12 @@ namespace olymp_trade {
         }
 
         /** \brief Получить исторические данные
+         * \param symbol_name Имя символа
+         * \param date_start Начальная дата
+         * \param date_stop Конечная дата
+         * \param timeframe Таймфрейм
+         * \param candles Свечи
+         * \return Код ошибки
          */
         int get_historical_data(
                 const std::string &symbol_name,
@@ -1169,6 +1175,51 @@ namespace olymp_trade {
                 if(tick >= xtime::SECONDS_IN_MINUTE) break;
             }
             return DATA_NOT_AVAILABLE;
+        }
+
+        /** \brief Получить абсолютный размер ставки и процент выплат
+         *
+         * Проценты выплат варьируются обычно от 0 до 1.0, где 1.0 соответствует 100% выплате брокера
+         * \param amount Размер ставки бинарного опциона
+         * \param payout Процент выплат
+         * \param symbol_name Имя валютной пары
+         * \param duration Длительность опциона в секундах
+         * \param balance Размер депозита
+         * \param winrate Винрейт
+         * \param attenuator Коэффициент ослабления Келли
+         * \return Состояние выплаты (0 в случае успеха, иначе см. PayoutCancelType)
+         */
+        int get_amount(
+                double &amount,
+                double &payout,
+                const std::string &symbol_name,
+                const uint32_t duration,
+                const double balance,
+                const double winrate,
+                const double attenuator) {
+            amount = 0;
+            payout = 0;
+
+            if((duration % xtime::SECONDS_IN_MINUTE) != 0) return INVALID_DURATION;
+            {
+                std::lock_guard<std::mutex> lock(symbols_spec_mutex);
+                auto it_spec = symbols_spec.find(symbol_name);
+                if(it_spec == symbols_spec.end()) return INVALID_SYMBOL;
+                if(duration < it_spec->second.min_duration) return INVALID_DURATION;
+                if(duration > it_spec->second.max_duration) return INVALID_DURATION;
+                if(it_spec->second.is_locked) return SYMBOL_LOCK;
+                payout = it_spec->second.winperc / 100.0;
+                const double coeff = 1.0 + payout;
+                if(winrate <= (1.0 / coeff)) return TOO_LITTLE_WINRATE;
+                const double rate = ((coeff * winrate - 1.0) / payout) * attenuator;
+                amount = balance * rate;
+                if(amount < it_spec->second.min_amount ||
+                    amount > it_spec->second.max_amount) {
+                    amount = 0;
+                    return INVALID_AMOUNT;
+                }
+            }
+            return OK;
         }
 
     };

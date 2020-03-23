@@ -145,6 +145,7 @@ namespace olymp_trade_common {
         INVALID_AMOUNT = -17,
         INVALID_SYMBOL = -18,
         SYMBOL_LOCK = -19,
+        TOO_LITTLE_WINRATE = -20,
     };
 
     class PrintThread: public std::ostringstream {
