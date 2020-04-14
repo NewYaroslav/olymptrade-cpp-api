@@ -574,8 +574,12 @@ namespace olymp_trade {
                             if(j[i]["d"][l]["time_close"] != nullptr) it_array_bets->second.closing_timestamp = j[i]["d"][l]["time_close"];
                         }
                     } else
-                    /* обновим баланс */
-                    if(j[i]["e"] == 50 || j[i]["e"] == 51 || j[i]["e"] == 52) {
+                    /* обновим баланс
+                     * j[i]["e"] == 51 - не понятно про что это, видимо бонусы
+                     * 52 - демо
+                     * 50 - реальный депозит
+                     */
+                    if(j[i]["e"] == 50 || j[i]["e"] == 52) {
                         //std::cout << "50-52" << std::endl;
                         for(size_t l = 0; l < j[i]["d"].size(); ++l) {
                             if(j[i]["d"][l]["account_id"] != nullptr && j[i]["d"][l]["account_id"] > 0) {
