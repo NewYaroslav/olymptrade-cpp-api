@@ -16,9 +16,13 @@ C++ header-only api для работы с брокером [olymptrade](https:/
 обеспечивающих совершение операций без непосредственного участия
 Клиента;
 
+**Не используйте данную библиотеку для автоматической торговли! Библиотека представлена для ознакомительных целей!**
+
 ### Как пользоваться
 
-Пример программы для Code::Blocks находится в папке *code_blocks/test-olymptrade-api*.
+Пример программы для Code::Blocks находится в папке *code_blocks/test-olymptrade-api* и *code_blocks/checking-opening-binary-option*.
 Расширение для браузера Chrome находится в папке *extensions/chrome*.
+
+![doc/extensions_1.png](doc/extensions_1.png)
 
 Описание будет в дальнейшем доделано.

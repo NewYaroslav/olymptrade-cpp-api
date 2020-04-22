@@ -264,6 +264,9 @@ namespace olymp_trade {
                 if(duration > it_spec->second.max_duration) return INVALID_DURATION;
                 if(it_spec->second.is_locked) return SYMBOL_LOCK;
             }
+
+            // команда на отправку сделки [{"t":2,"e":23,"uuid":"K9BCAZCYW0OW9Z6WTGP","d":[{"amount":30,"dir":"down","pair":"GBPAUD","cat":"digital","pos":0,"source":"platform","account_id":0,"group":"demo","timestamp":1587560118655,"duration":60}]}]
+
             std::string uuid = get_uuid();
             json j = json::array();
             j[0]["e"] = 23;
@@ -568,6 +571,9 @@ namespace olymp_trade {
                             } else
                             if(j[i]["d"][l]["status"] == "loose") {
                                 it_array_bets->second.bet_status = BetStatus::LOSS;
+                            } else
+                            if(j[i]["d"][l]["status"] == "standoff") {
+                                it_array_bets->second.bet_status = BetStatus::STANDOFF;
                             } else {
                                 it_array_bets->second.bet_status = BetStatus::CHECK_ERROR;
                             }

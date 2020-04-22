@@ -90,6 +90,7 @@ namespace olymp_trade_common {
         WAITING_COMPLETION,
         WIN,
         LOSS,
+        STANDOFF,
     };
 
     /** \brief Класс для хранения информации по сделке

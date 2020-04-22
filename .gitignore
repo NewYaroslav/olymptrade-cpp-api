@@ -18,7 +18,6 @@ code_blocks/*/auth.json
 code_blocks/*/bin/
 extensions/other/*
 extensions/olymp-trade/*
-extensions/olymp-trade-bridge/*
 bin/*.dll
 *.pdn
 *.gch

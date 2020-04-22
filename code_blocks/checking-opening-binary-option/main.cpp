@@ -21,6 +21,8 @@ int main() {
     std::cout << "account_id_real: " << olymptrade.get_account_id_real() << std::endl;
     std::cout << "is_demo: " << olymptrade.demo_account() << std::endl;
 
+    olymptrade.set_demo_account(false);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     olymptrade.set_demo_account(true);
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     std::cout << "set_demo, d: " << olymptrade.demo_account() << " b: " << olymptrade.get_balance() << std::endl;
@@ -53,6 +55,9 @@ int main() {
             } else
             if(bet.bet_status == olymp_trade::BetStatus::LOSS) {
                 std::cout << "LOSS" << std::endl;
+            } else
+            if(bet.bet_status == olymp_trade::BetStatus::STANDOFF) {
+                std::cout << "STANDOFF" << std::endl;
             }
         });
         if(err != olymp_trade::OK) std::cout << err << std::endl;
@@ -82,6 +87,9 @@ int main() {
             } else
             if(bet.bet_status == olymp_trade::BetStatus::LOSS) {
                 std::cout << "LOSS" << std::endl;
+            } else
+            if(bet.bet_status == olymp_trade::BetStatus::STANDOFF) {
+                std::cout << "STANDOFF" << std::endl;
             }
         });
         if(err != olymp_trade::OK) std::cout << err << std::endl;
