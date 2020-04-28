@@ -624,9 +624,15 @@ namespace olymp_trade {
                             symbols_spec[symbol_name].winperc = j[i]["d"][l]["winperc"];
                         }
                     } else
-                    /* запускаем поток еще раз */
+                    /* когда приходит это сообщение, обычно запускаем поток котировок еще раз */
                     if(j[i]["e"] == 95 && j[i]["t"] == 3) {
                         //std::cout << "95 t 3" << std::endl;
+                    } else
+                    /* это сообщение присылает метку времени
+                     * пример: [{"e":90,"t":3,"uuid":"K9JKR6OG0DW6IOHTRKBH","ts":1588058068}]
+                     */
+                    if(j[i]["e"] == 90 && j[i]["t"] == 3) {
+
                     } else
                     if(j[i]["e"] == 120) {
                         //std::cout << "120" << std::endl;

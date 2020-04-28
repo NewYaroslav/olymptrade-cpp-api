@@ -102,7 +102,7 @@ int main() {
             << " b: " << olymptrade.get_balance()
             << " server time: " << xtime::get_str_date_time_ms(olymptrade.get_server_timestamp())
             << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
     }
     return 0;
 }

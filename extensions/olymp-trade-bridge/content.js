@@ -27,10 +27,17 @@ function injected_main() {
 	function quotes_stream(new_socket, symbol_name, to_timestamp) {
 		new_socket = new WebSocket("wss://" + broker_domain + "/ds/v6"), new_socket.onopen = function() {
             console.log("Соединение " + symbol_name + " установлено."), 
+			/* для версии v5 
 			new_socket.send('[{"t":1,"e":105,"d":[{"source":"platform"}]}]'); 
 			new_socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
 			new_socket.send('[{"t":2,"e":4,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60}]}]');
 			new_socket.send('[{"t":2,"e":3,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60,"to":' + to_timestamp + ',"solid":true}]}]');
+			*/
+			// для версии v6
+			new_socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
+			new_socket.send('[{"t":2,"e":4,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60}]}]');
+			new_socket.send('[{"t":2,"e":3,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60,"to":' + to_timestamp + ',"solid":true}]}]');
+			
         }, new_socket.onclose = function(t) {
 			// заново открываем соединение
             if(is_api_socket) {
@@ -61,9 +68,29 @@ function injected_main() {
 	function connect_broker() {
         socket = new WebSocket("wss://" + broker_domain + "/ds/v6"), socket.onopen = function() {
             console.log("Соединение установлено."), 
+			/* для версии v5 
 			socket.send('[{"t":1,"e":105,"d":[{"source":"platform"}]}]'); 
 			socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
-
+			*/
+			// для версии v6
+			socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[125,127,128,51,50,52,120]}]'); // подписались на потоки
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[200,201]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[111]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[230,231]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[230,231]}]');
+			socket.send('[{"t":2,"e":133,"uuid":"' + getUuid() + '"}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[141]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[110]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[140]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[241]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[60,61]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[70,73,72]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[100]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[22,20,21,26]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[42]}]');
+			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[80]}]');
+			
         }, socket.onclose = function(t) {
 			is_socket = false;
             if(is_api_socket) {
