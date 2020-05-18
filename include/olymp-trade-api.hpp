@@ -323,14 +323,15 @@ namespace olymp_trade {
                 std::lock_guard<std::mutex> lock(request_future_mutex);
                 request_future.resize(request_future.size() + 1);
                 request_future.back() = std::async(std::launch::async,[&,
-                        uuid,
+                        bet,
+						uuid,
                         callback] {
                     if(callback != nullptr) callback(bet);
                     /* ждем в цикле, пока сделка не закроется */
                     BetStatus last_bet_status = BetStatus::UNKNOWN_STATE;
                     while(!is_request_future_shutdown) {
                         std::this_thread::yield();
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
                         Bet bet;
                         {
                             std::lock_guard<std::mutex> lock(array_bets_mutex);
