@@ -1205,6 +1205,7 @@ namespace olymp_trade {
          * \param winrate Винрейт
          * \param attenuator Коэффициент ослабления Келли
          * \param payout_limiter Ограничитель процента выплат (по умолчанию не используется)
+         * \param winrate_limiter Ограничитель винрейта (по умолчанию не используется)
          * \return Состояние выплаты (0 в случае успеха, иначе см. PayoutCancelType)
          */
         int get_amount(
@@ -1215,7 +1216,8 @@ namespace olymp_trade {
                 const double balance,
                 const double winrate,
                 const double attenuator,
-                const double payout_limiter = 1.0) {
+                const double payout_limiter = 1.0,
+                const double winrate_limiter = 1.0) {
             amount = 0;
             payout = 0;
 
@@ -1230,8 +1232,10 @@ namespace olymp_trade {
                 payout = it_spec->second.winperc / 100.0;
                 const double coeff = 1.0 + payout;
                 if(winrate <= (1.0 / coeff)) return TOO_LITTLE_WINRATE;
+                const double calc_winrate = std::min(winrate_limiter, winrate);
+                if(calc_winrate <= (1.0 / coeff)) return TOO_LITTLE_WINRATE;
                 const double calc_payout = std::min(payout_limiter, payout);
-                const double rate = (((1.0 + calc_payout) * winrate - 1.0) / calc_payout) * attenuator;
+                const double rate = (((1.0 + calc_payout) * calc_winrate - 1.0) / calc_payout) * attenuator;
                 amount = balance * rate;
                 if(amount < it_spec->second.min_amount ||
                     amount > it_spec->second.max_amount) {
