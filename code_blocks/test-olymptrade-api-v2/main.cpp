@@ -35,10 +35,16 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     std::cout << "set_real, d: " << olymptrade.demo_account() << " b: " << olymptrade.get_balance() << std::endl;
 
-    std::cout << "request_amount_limits, err code: " << olymptrade.request_amount_limits() << std::endl;
+    olymptrade.request_amount_limits();
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+    /* вернет код, отличный от нуля, если брокер ввел лимиты */
     std::cout << "check_limit, code: " << olymptrade.check_limit() << std::endl;
+
+    /* метод get_limit_data возвращает структуру лимита,
+     * которая содержит подробности введенных ограничений */
     std::cout << "limit response: " << olymptrade.get_limit_data().response << std::endl;
+
     std::system("pause");
     return 0;
 }

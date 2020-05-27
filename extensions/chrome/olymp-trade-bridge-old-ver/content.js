@@ -1,28 +1,4 @@
-﻿/*
-* olymptrade-api-cpp - C ++ API client for olymptrade
-*
-* Copyright (c) 2019 Elektro Yar. Email: git.electroyar@gmail.com
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*/
-
-var symbols_array = [];
+﻿var symbols_array = [];
 var socket;
 var socket_array = [];
 var api_socket;
@@ -30,13 +6,8 @@ var api_socket;
 var port;
 
 var is_socket = false;
-var is_last_socket = false;
-
 var is_api_socket = false;
-var is_last_api_socket = false;
-
 var is_error = false;
-var is_last_error = false;
 
 function getUuid() {
     return(Date.now().toString(36)+Math.random().toString(36).substr(2,12)).toUpperCase()
@@ -49,19 +20,12 @@ function injected_main() {
 
 	// функция для запуска потока котировок
 	function quotes_stream(new_socket, symbol_name, to_timestamp) {
-		new_socket = new WebSocket("wss://" + broker_domain + "/ds/v6"), new_socket.onopen = function() {
+		new_socket = new WebSocket("wss://" + broker_domain + "/ds/v5"), new_socket.onopen = function() {
             console.log("Соединение " + symbol_name + " установлено."), 
-			/* для версии v5 
 			new_socket.send('[{"t":1,"e":105,"d":[{"source":"platform"}]}]'); 
 			new_socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
 			new_socket.send('[{"t":2,"e":4,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60}]}]');
 			new_socket.send('[{"t":2,"e":3,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60,"to":' + to_timestamp + ',"solid":true}]}]');
-			*/
-			// для версии v6
-			new_socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
-			new_socket.send('[{"t":2,"e":4,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60}]}]');
-			new_socket.send('[{"t":2,"e":3,"uuid":"' + getUuid() + '","d":[{"p":"' + symbol_name + '","tf":60,"to":' + to_timestamp + ',"solid":true}]}]');
-			
         }, new_socket.onclose = function(t) {
 			// заново открываем соединение
             if(is_api_socket) {
@@ -90,31 +54,11 @@ function injected_main() {
 	}
 	
 	function connect_broker() {
-        socket = new WebSocket("wss://" + broker_domain + "/ds/v6"), socket.onopen = function() {
+        socket = new WebSocket("wss://" + broker_domain + "/ds/v5"), socket.onopen = function() {
             console.log("Соединение установлено."), 
-			/* для версии v5 
 			socket.send('[{"t":1,"e":105,"d":[{"source":"platform"}]}]'); 
 			socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
-			*/
-			// для версии v6
-			socket.send('[{"t":2,"e":90,"uuid":"' + getUuid() + '"}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[125,127,128,51,50,52,120]}]'); // подписались на потоки
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[200,201]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[111]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[230,231]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[230,231]}]');
-			socket.send('[{"t":2,"e":133,"uuid":"' + getUuid() + '"}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[141]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[110]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[140]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[241]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[60,61]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[70,73,72]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[100]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[22,20,21,26]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[42]}]');
-			socket.send('[{"t":2,"e":98,"uuid":"' + getUuid() + '","d":[80]}]');
-			
+
         }, socket.onclose = function(t) {
 			is_socket = false;
             if(is_api_socket) {
@@ -154,7 +98,8 @@ function injected_main() {
 				if (4 == rt.readyState) {
 					if (200 != rt.status) {
 						console.log(rt.status + ": " + rt.statusText);
-						api_socket.send('{"connection_status":"error"}');
+						//api_socket.send('{"connection_status":"error"}');
+						api_socket.close();
 						is_error = true;
 					} else {
 						if(is_api_socket) {
@@ -198,7 +143,7 @@ function injected_main() {
 				var account_id = api_message.account_id;
 				var rt = new XMLHttpRequest;
 				var upload = '{"group":"' + group + '","account_id":' + account_id + '}';
-				console.log("json_upload " + upload);
+				console.log("upload: " + upload);
 				
 				rt.open("POST", "https://api.olymptrade.com/v4/user/set-money-group", !0), 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -210,7 +155,7 @@ function injected_main() {
 				rt.onreadystatechange = function() {
 					if (4 == rt.readyState) {
 						if (200 != rt.status) {
-							api_socket.send('{"connection_status":"error"}');
+							api_socket.send('{"set-money-group":"error"}');
 							console.log(rt.status + ": " + rt.statusText);
 							is_error = true;
 						} else {
@@ -220,14 +165,18 @@ function injected_main() {
 					}
 				}
 			} else
-			if(api_message.cmd == "get-amount-limits") {
-				var group = api_message.group;
-				var account_id = api_message.account_id;
+			/* загрузить исторические данные */
+			if(api_message.cmd == "candle-history") {
+				var size = api_message.size;
+				var pair = api_message.pair;
+				var from = api_message.from;
+				var to = api_message.to;
+				var limit = api_message.limit;
 				var rt = new XMLHttpRequest;
-				var upload = '{"account_id":' + account_id + '}';
-				console.log("json_upload " + upload);
+				var upload = '{"pair":"' + pair + '","size":' + size + ',"from":'+ from + ',"to":' + to + ',"limit":' + limit + '}'
+				console.log("upload: " + upload);
 				
-				rt.open("POST", "https://api.olymptrade.com/v1/cabinet/amount-limits", !0), 
+				rt.open("POST", "https://api.olymptrade.com/v3/cabinet/candle-history", !0), 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 				rt.setRequestHeader('Accept', 'application/json, text/plain, */*');
 				rt.setRequestHeader('X-Request-Type', 'Api-Request');
@@ -236,8 +185,11 @@ function injected_main() {
 				rt.send(upload), 
 				rt.onreadystatechange = function() {
 					if (4 == rt.readyState) {
+						if (500 == rt.status) {
+							api_socket.send('{"data":[]}');
+						} else
 						if (200 != rt.status) {
-							api_socket.send('{"connection_status":"error"}');
+							api_socket.send('{"candle-history":"error"}');
 							console.log(rt.status + ": " + rt.statusText);
 							is_error = true;
 						} else {
@@ -247,7 +199,7 @@ function injected_main() {
 					}
 				}
 			} else
-			/* если была получена не коамнда API, просто отсылаем данные */
+			/* если была получена не команда API, просто отсылаем данные */
 			if(is_socket) {
 				socket.send(t.data);
 			}
@@ -257,11 +209,8 @@ function injected_main() {
 			is_api_socket = false;
         }
     }
-	
-	//connect_api();
-	
+
 	chrome.storage.local.get("olymptradeapiwsport", function(result) {
-		//var currentColor = 
 		if(result.olymptradeapiwsport) {
 			port = result.olymptradeapiwsport; 
 		} else {
@@ -274,12 +223,14 @@ function injected_main() {
 	chrome.storage.onChanged.addListener(function(changes, namespace) {
 		for (var key in changes) {
 			var storageChange = changes[key];
-			console.log('Storage key "%s" in namespace "%s" changed. ' +
-			'Old value was "%s", new value is "%s".',
-			key,
-			namespace,
-			storageChange.oldValue,
-			storageChange.newValue);
+			
+			//console.log('Storage key "%s" in namespace "%s" changed. ' +
+			//'Old value was "%s", new value is "%s".',
+			//key,
+			//namespace,
+			//storageChange.oldValue,
+			//storageChange.newValue);
+			
 			if(key == "olymptradeapiwsport") {
 				port = storageChange.newValue;
 				if(is_api_socket) {
@@ -290,37 +241,21 @@ function injected_main() {
 			}
 		}
 	});
-/*
-	var rt = new XMLHttpRequest;
-	console.log("broker_domain " + broker_domain);
-    rt.open("GET", "https://" + broker_domain + "/platform/state", !0), rt.send(), rt.onreadystatechange = function() {
-		console.log("Пробуем GET!");
-        if (4 == rt.readyState) {
-            if (200 != rt.status) {
-				console.log(rt.status + ": " + rt.statusText);
-				is_error = true;
-			} else {
-				//console.log("Получены данные" + rt.responseText), 
-				mes = JSON.parse(rt.responseText), 
-				console.log(mes);
-				//connect_api();
-            }
-        }
-    }
-	https://api.olymptrade.com/v1/cabinet/amount-limits
-	{"data":[]}
-	*/
+
 }
 
 function update_second() { 
-	//console.log("СЕКУНДОЧШКУ А! " + getUuid());
+
 }
 
-setInterval(update_second, 1000);
+function update_10_second() { 
+
+}
+
+//setInterval(update_second, 1000);
 //setInterval(update_10_second, 10000);// запускать функцию каждую секунду
 
 function try_again() {
-	console.log("try_again!");
 	injected_main()
 }
 
