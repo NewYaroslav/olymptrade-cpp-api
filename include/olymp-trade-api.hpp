@@ -49,13 +49,16 @@ namespace olymp_trade {
         using json = nlohmann::json;
         using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
 
-        /// Типы События
-        enum class EventType {
+        /// Типы Событий
+        enum class EventTypes {
             NEW_TICK,                   /**< Получен новый тик */
             HISTORICAL_DATA_RECEIVED,   /**< Получены исторические данные */
         };
 
     private:
+
+        Limit limit;
+        std::mutex limit_mutex;
 
         std::mutex request_future_mutex;
         std::vector<std::future<void>> request_future;
@@ -414,6 +417,69 @@ namespace olymp_trade {
             return false;
         }
 
+        /** \brief Париснг ответа от запроса на лимиты аккаунта
+         *
+         * Данный метод парсит ответ от запроса:
+         * https://api.olymptrade.com/v1/cabinet/amount-limits
+         * \param j ответ сервера
+         * \return вернет true, если данные соответствуют
+         */
+        bool parse_amount_limits(json &j) {
+            try {
+                if(j.find("data")!= j.end() && j["data"].is_array()) {
+                    const size_t data_size = j["data"].size();
+                    if(data_size == 0) {
+                        std::lock_guard<std::mutex> lock(limit_mutex);
+                        limit.response = j.dump();
+                        return true;
+                    }
+                    for(size_t i = 0; i < data_size; ++i) {
+                        if(j["data"][i].find("source") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            limit.group = j["data"][i]["source"];
+                            if(limit.group == "manual") limit.limit_type = LimitTypes::MANUAL_LIMIT;
+                            if(limit.group == "cron") limit.limit_type = LimitTypes::AUTOMATIC_LIMIT;
+                        }
+                        if(j["data"][i].find("group") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            limit.group = j["data"][i]["group"];
+                            if(limit.group == "") limit.limit_type = LimitTypes::LIMIT_ALL_SYMBOL;
+                            else if(limit.group == "crypto") limit.limit_type = LimitTypes::LIMIT_ALL_CRYPTO;
+                        }
+                        if(j["data"][i].find("ts_end") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            if(j["data"][i]["ts_end"] == nullptr) limit.limit_type = LimitTypes::PERPETUAL_LIMIT;
+                            else {
+                                limit.ts_end = j["data"][i]["ts_end"];
+                                limit.limit_type = LimitTypes::EXPIRY_LIMIT;
+                            }
+                        }
+                        if(j["data"][i].find("ts_start") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            limit.ts_start = j["data"][i]["ts_start"];
+                        }
+                        if(j["data"][i].find("o_limit") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            limit.o_limit = j["data"][i]["o_limit"];
+                        }
+                        if(j["data"][i].find("o_current_limit") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            limit.o_current_limit = j["data"][i]["o_current_limit"];
+                        }
+                        if(j["data"][i].find("time_frame") != j["data"][i].end()) {
+                            std::lock_guard<std::mutex> lock(limit_mutex);
+                            limit.time_frame = j["data"][i]["time_frame"];
+                        }
+                    }
+                    std::lock_guard<std::mutex> lock(limit_mutex);
+                    limit.response = j.dump();
+                    return true;
+                }
+            }
+            catch(...) {};
+            return false;
+        }
+
         bool parse_platform(json &j) {
             if(j.find("deal") != j.end()) {
                 {
@@ -683,6 +749,7 @@ namespace olymp_trade {
                                 while(true) {
                                     if(parse_olymptrade(j)) break;
                                     if(parse_platform(j)) break;
+                                    if(parse_amount_limits(j)) break;
                                     if(parse_user(j)) break;
                                     if(parse_candle_history(j)) break;
                                     if(j["connection_status"] == "ok") {
@@ -797,6 +864,10 @@ namespace olymp_trade {
 
     public:
 
+        /** \brief Конструктор класса API
+         *
+         * \param port Порт
+         */
         OlympTradeApi(const uint32_t port) {
             std::vector<std::string> symbol_list;
             const uint32_t number_bars = 0;
@@ -871,6 +942,9 @@ namespace olymp_trade {
             return OK;
         }
 
+        /** \brief Получить ID реального аккаунта
+         * \return ID реального аккаунта
+         */
         inline uint64_t get_account_id_real() {
             return account_id_real;
         }
@@ -939,10 +1013,28 @@ namespace olymp_trade {
          * \param symbol_name Имя символа
          * \return Вернет true, если символ есть у брокера
          */
-        bool check_symbol(const std::string &symbol_name) {
+        inline bool check_symbol(const std::string &symbol_name) {
             std::lock_guard<std::mutex> lock(symbols_spec_mutex);
             if(symbols_spec.find(symbol_name) == symbols_spec.end()) return false;
             return true;
+        }
+
+        /** \brief Проверить наличие лимитов
+         * \return Вернет true, если есть лимиты
+         */
+        inline bool check_limit() {
+            std::lock_guard<std::mutex> lock(limit_mutex);
+            if(limit.limit_type != LimitTypes::NO_LIMITS) return true;
+            return false;
+        }
+
+        /** \brief Получить данные лимита
+         *
+         * \return Данные лимита
+         */
+        inline Limit get_limit_data() {
+            std::lock_guard<std::mutex> lock(limit_mutex);
+            return limit;
         }
 
         /** \brief Подписаться на котировки
@@ -985,6 +1077,18 @@ namespace olymp_trade {
                 j["group"] = "real";
                 j["account_id"] = (uint64_t)account_id_real;
             }
+            send(j.dump());
+            return true;
+        }
+
+        /** \brief Сделать запрос на лимиты
+         * \return Вернет true в случае успеха
+         */
+        bool request_amount_limits() {
+            if(!is_connected) return is_connected;
+            json j;
+            j["cmd"] = "get-amount-limits";
+            j["account_id"] = (uint64_t)account_id_real;
             send(j.dump());
             return true;
         }

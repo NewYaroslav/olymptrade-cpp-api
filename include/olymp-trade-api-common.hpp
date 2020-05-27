@@ -32,6 +32,37 @@
 
 namespace olymp_trade_common {
 
+    /// Типы лимитов
+    enum class LimitTypes {
+        NO_LIMITS = 0,
+        PERPETUAL_LIMIT = 1,    /**< Вечный лимит */
+        EXPIRY_LIMIT = 2,       /**< Лимит с экспирацией */
+        LIMIT_ALL_CRYPTO = 3,   /**< Лимит на все криптоактивы */
+        LIMIT_ALL_SYMBOL = 4,   /**< Лимит на все символы */
+        MANUAL_LIMIT = 5,
+        AUTOMATIC_LIMIT = 6,
+        UNKNOWN_LIMIT = 6,
+    };
+
+    /** \brief Класс для хранения лимитов
+     *
+     */
+    class Limit {
+    public:
+        std::string symbols;
+        std::string group;
+        std::string source;
+        std::string response;
+        uint32_t time_frame = 0;
+        xtime::timestamp_t ts_start = 0;
+        xtime::timestamp_t ts_end = 0;
+        double o_limit = 0;
+        double o_current_limit = 0;
+        LimitTypes limit_type = LimitTypes::NO_LIMITS;
+
+        Limit() {};
+    };
+
     /** \brief Класс для хранения бара
      */
     class Candle {
