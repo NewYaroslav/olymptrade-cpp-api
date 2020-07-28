@@ -90,16 +90,19 @@ namespace olymp_trade {
             }
         }
 
-        std::future<void> server_future;
-        std::atomic<bool> is_command_server_stop;
+        std::atomic<double> bets_last_timestamp = ATOMIC_VAR_INIT(0.0d);/**< Последняя метка времени открытия сделки */
+        std::atomic<double> bets_delay = ATOMIC_VAR_INIT(1.0d);         /**< Задержка между открытием сделок */
 
-        std::atomic<bool> is_cout_log;
+        std::future<void> server_future;
+        std::atomic<bool> is_command_server_stop;   /**< Команда на остановку сервера */
+
+        std::atomic<bool> is_cout_log;              /**< Флаг вывода логов на экран */
 
         std::mutex server_mutex;
-        std::shared_ptr<WsServer> server;
+        std::shared_ptr<WsServer> server;           /**< WS-Сервер */
 
         std::mutex current_connection_mutex;
-        std::shared_ptr<WsServer::Connection> current_connection;
+        std::shared_ptr<WsServer::Connection> current_connection;   /**< Текущее соединение */
 
         std::atomic<bool> is_connected; /**< Флаг установленного соединения */
         std::atomic<bool> is_open_connect;
@@ -318,6 +321,16 @@ namespace olymp_trade {
                 array_bets[uuid] = bet;
                 bet_id_to_uuid[bet.api_bet_id] = uuid;
             }
+
+            /* проверяем, не надо ли подождать перед открытием сделки */
+            if(bets_last_timestamp > 0) {
+                while(xtime::get_ftimestamp() < (bets_last_timestamp + bets_delay)) {
+                    if(is_command_server_stop) return DATA_NOT_AVAILABLE;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                };
+            }
+            /* время открытия сделки */
+            bets_last_timestamp = xtime::get_ftimestamp();
 
             send(j.dump());
 
@@ -547,7 +560,7 @@ namespace olymp_trade {
                     for(size_t i = 0; i < j_pairs.size(); ++i) {
                         std::string str_id = j_pairs[i]["id"];
                         //std::cout << str_id << " : " << j_pairs[i] << "\n";
-                        std::cout << str_id << "\n";
+                        //std::cout << str_id << "\n";
                         symbols_spec[str_id].is_locked = j_pairs[i]["locked"];
                         symbols_spec[str_id].is_active = j_pairs[i]["active"];
                         symbols_spec[str_id].is_locked_trading = j_pairs[i]["locked_trading"];
@@ -981,7 +994,7 @@ namespace olymp_trade {
 
         /** \brief Получтить ставку
          * \param bet Класс ставки, сюда будут загружены все параметры ставки
-         * \param api_bet_id Уникальный номер ставки, который возвращает метод async_open_bo_sprint
+         * \param api_bet_id Уникальный номер ставки, который возвращает метод async_open_bo
          * \return Код ошибки или 0 в случае успеха
          */
         int get_bet(Bet &bet, const uint64_t api_bet_id) {
@@ -1007,6 +1020,13 @@ namespace olymp_trade {
          */
         inline bool demo_account() {
             return is_demo;
+        }
+
+        /** \brief Установить задержку между открытием сделок
+         * \param delay Задержка между открытием сделок
+         */
+        inline void set_bets_delay(const double delay) {
+            bets_delay = delay;
         }
 
         /** \brief Получить метку времени сервера
