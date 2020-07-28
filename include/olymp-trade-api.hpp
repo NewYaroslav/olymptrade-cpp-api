@@ -431,8 +431,10 @@ namespace olymp_trade {
                     if(data_size == 0) {
                         std::lock_guard<std::mutex> lock(limit_mutex);
                         limit.response = j.dump();
+                        limit.is_limit = false;
                         return true;
                     }
+                    limit.is_limit = true;
                     for(size_t i = 0; i < data_size; ++i) {
                         if(j["data"][i].find("source") != j["data"][i].end()) {
                             std::lock_guard<std::mutex> lock(limit_mutex);
@@ -480,6 +482,8 @@ namespace olymp_trade {
             return false;
         }
 
+        /** \brief Устаревшая функция
+         */
         bool parse_platform(json &j) {
             if(j.find("deal") != j.end()) {
                 {
@@ -489,7 +493,6 @@ namespace olymp_trade {
                     if(j["user"]["balance"] != nullptr) balance_real = (double)j["user"]["balance"];
                     if(j["user"]["is_demo"] != nullptr) is_demo = j["user"]["is_demo"];
                 }
-
                 {
                     std::lock_guard<std::mutex> lock(symbols_spec_mutex);
                     auto it = j["pairs"].find("pairs");
@@ -516,6 +519,53 @@ namespace olymp_trade {
                             std::string symbol_name = j["pairs_available"][i]["id"];
                             symbols_spec[symbol_name].min_timestamp = j["pairs_available"][i]["from"];
                         }
+                    }
+                }
+            } else return false;
+            return true;
+        }
+
+        /** \brief Парсер values
+         * Парсит запрос POST https://api.olymptrade.com/v4/user/values
+         */
+        bool parse_values(json &j) {
+            if(j.find("data") != j.end()) {
+                {
+                    json j_data = j["data"]["data"];
+                    json j_balance = j["data"]["balance"];
+                    json j_money_group = j["data"]["money_group"];
+                    std::lock_guard<std::mutex> lock(account_mutex);
+                    if(j_data["currency"] != nullptr) currency = j_data["currency"];
+                    if(j_balance["demo"]["amount"] != nullptr) balance_demo = j_balance["demo"]["amount"];
+                    if(j_balance["real"]["amount"] != nullptr) balance_real = j_balance["real"]["amount"];
+                    if(j_money_group["group"] == "demo") is_demo = true;
+                    else if(j_money_group["group"] == "real") is_demo = false;
+                }
+                {
+                    json j_pairs = j["data"]["pairs"];
+                    std::lock_guard<std::mutex> lock(symbols_spec_mutex);
+                    for(size_t i = 0; i < j_pairs.size(); ++i) {
+                        std::string str_id = j_pairs[i]["id"];
+                        //std::cout << str_id << " : " << j_pairs[i] << "\n";
+                        std::cout << str_id << "\n";
+                        symbols_spec[str_id].is_locked = j_pairs[i]["locked"];
+                        symbols_spec[str_id].is_active = j_pairs[i]["active"];
+                        symbols_spec[str_id].is_locked_trading = j_pairs[i]["locked_trading"];
+
+                        symbols_spec[str_id].winperc = j_pairs[i]["winperc"];
+                        symbols_spec[str_id].time_open = j_pairs[i]["time_open"];
+                        symbols_spec[str_id].time_open = j_pairs[i]["time_close"];
+
+                        symbols_spec[str_id].min_duration = j_pairs[i]["min_duration"];
+                        symbols_spec[str_id].max_duration = j_pairs[i]["max_duration"];
+                        symbols_spec[str_id].precision = j_pairs[i]["precision"];
+                        symbols_spec[str_id].max_amount = j_pairs[i]["max_amount"];
+                        symbols_spec[str_id].min_amount = j_pairs[i]["min_amount"];
+                    }
+                    json j_pairs_available = j["data"]["pairs_available"];
+                    for(size_t i = 0; i < j_pairs_available.size(); ++i) {
+                        std::string symbol_name = j_pairs_available[i]["id"];
+                        symbols_spec[symbol_name].min_timestamp = j_pairs_available[i]["from"];
                     }
                 }
             } else return false;
@@ -684,12 +734,15 @@ namespace olymp_trade {
                     } else
                     /* обновим проценты выплат */
                     if(j[i]["e"] == 72) {
-                        //std::cout << "72" << std::endl;
                         for(size_t l = 0; l < j[i]["d"].size(); ++l) {
                             std::string symbol_name = j[i]["d"][l]["pair"];
                             std::lock_guard<std::mutex> lock(symbols_spec_mutex);
                             symbols_spec[symbol_name].winperc = j[i]["d"][l]["winperc"];
                         }
+                    } else
+                    /* индикатор направления сделок пользователей */
+                    if(j[i]["e"] == 73) {
+                        // [{"e":73,"d":[{"pair":"Bitcoin","sentiment":64}]}]
                     } else
                     /* когда приходит это сообщение, обычно запускаем поток котировок еще раз */
                     if(j[i]["e"] == 95 && j[i]["t"] == 3) {
@@ -744,12 +797,12 @@ namespace olymp_trade {
                             //if(is_cout_log) std::cout << "OlympTradeApi Server: Message received: \"" << out_message << "\" from " << connection.get() << std::endl;
                             //std::cout << "get meesage" << std::endl;
                             try {
-                                json j = json::parse(in_message->string());
+                                json j = json::parse(out_message);
 
                                 while(true) {
                                     if(parse_olymptrade(j)) break;
-                                    if(parse_platform(j)) break;
                                     if(parse_amount_limits(j)) break;
+                                    if(parse_values(j)) break;
                                     if(parse_user(j)) break;
                                     if(parse_candle_history(j)) break;
                                     if(j["connection_status"] == "ok") {
@@ -855,7 +908,7 @@ namespace olymp_trade {
                     }
 
                     server->start([&](unsigned short port) {
-                        if(is_cout_log) std::cout << "server run" << std::endl;
+                        if(is_cout_log) std::cout << "OlympTradeApi start server" << std::endl;
                     });
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 }
@@ -1024,7 +1077,7 @@ namespace olymp_trade {
          */
         inline bool check_limit() {
             std::lock_guard<std::mutex> lock(limit_mutex);
-            if(limit.limit_type != LimitTypes::NO_LIMITS) return true;
+            if(limit.is_limit) return true;
             return false;
         }
 

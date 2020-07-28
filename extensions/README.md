@@ -2,5 +2,9 @@
 
 ### olymp-trade-bridge
 
-*olymp-trade-bridge* - расширение для подключения к брокеру Olymp Trade.
+* *chrome/olymp-trade-bridge* - расширение для подключения к брокеру Olymp Trade.
+
 Расширение имеет лишь один параметр - номер порта.
+Последняя версия 1.2
+
+* *extensions.zip* - различные расширения для браузера

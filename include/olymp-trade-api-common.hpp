@@ -59,6 +59,7 @@ namespace olymp_trade_common {
         double o_limit = 0;
         double o_current_limit = 0;
         LimitTypes limit_type = LimitTypes::NO_LIMITS;
+        bool is_limit = false;
 
         Limit() {};
     };

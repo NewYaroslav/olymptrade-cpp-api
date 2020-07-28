@@ -147,10 +147,19 @@ function injected_main() {
         api_socket = new WebSocket("ws://localhost:" + port + "/olymptrade-api"), 
 		api_socket.onopen = function() {
 			is_api_socket = true;
-			
 			var rt = new XMLHttpRequest;
-			//console.log("broker_domain " + broker_domain);
-			rt.open("GET", "https://" + broker_domain + "/platform/state", !0), rt.send(), rt.onreadystatechange = function() {
+			var upload_user_values = '{"list":["deals","options","pairs","pairs_available","risk_free_deals","accounts","analytics","avatar","balance","bonuses","data","duo_auth_state","jivo_settings","money_group","payment_systems","politics","promo","service_levels","session","stocksup","vip_status_amount","sound_packs","kyc"]}';
+			rt.open("POST", "https://api.olymptrade.com/v4/user/values", !0), 
+			rt.setRequestHeader('Content-Type', 'application/json'),
+			rt.setRequestHeader('Referer', 'https://olymptrade.com/platform'),
+			rt.setRequestHeader('DNT', '1'),
+			rt.setRequestHeader('Accept', 'application/json, text/plain, */*'),
+			rt.setRequestHeader('X-App-Version', '14965'),
+			rt.setRequestHeader('X-Request-Type', 'Api-Request'),
+			rt.setRequestHeader('X-Request-Project', 'bo'),
+			rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest'),
+			rt.send(upload_user_values), 
+			rt.onreadystatechange = function() {
 				if (4 == rt.readyState) {
 					if (200 != rt.status) {
 						console.log(rt.status + ": " + rt.statusText);
@@ -158,6 +167,7 @@ function injected_main() {
 						is_error = true;
 					} else {
 						if(is_api_socket) {
+							//console.log("https://api.olymptrade.com/v4/user/values rt.responseText out: " + rt.responseText);
 							api_socket.send(rt.responseText);
 							connect_broker();
 						}
@@ -225,7 +235,7 @@ function injected_main() {
 				var account_id = api_message.account_id;
 				var rt = new XMLHttpRequest;
 				var upload = '{"account_id":' + account_id + '}';
-				console.log("json_upload " + upload);
+				//console.log("json_upload " + upload);
 				
 				rt.open("POST", "https://api.olymptrade.com/v1/cabinet/amount-limits", !0), 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
