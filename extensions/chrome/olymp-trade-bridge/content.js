@@ -151,8 +151,8 @@ function injected_main() {
 			var upload_user_values = '{"list":["deals","options","pairs","pairs_available","risk_free_deals","accounts","analytics","avatar","balance","bonuses","data","duo_auth_state","jivo_settings","money_group","payment_systems","politics","promo","service_levels","session","stocksup","vip_status_amount","sound_packs","kyc"]}';
 			rt.open("POST", "https://api.olymptrade.com/v4/user/values", !0), 
 			rt.setRequestHeader('Content-Type', 'application/json'),
-			rt.setRequestHeader('Referer', 'https://olymptrade.com/platform'),
-			rt.setRequestHeader('DNT', '1'),
+			// rt.setRequestHeader('Referer', 'https://olymptrade.com/platform'),
+			// rt.setRequestHeader('DNT', '1'),
 			rt.setRequestHeader('Accept', 'application/json, text/plain, */*'),
 			rt.setRequestHeader('X-App-Version', '14965'),
 			rt.setRequestHeader('X-Request-Type', 'Api-Request'),
@@ -180,6 +180,7 @@ function injected_main() {
 			is_api_socket = false;
 			/* закрываем соединение с брокером */
 			if(is_socket) socket.close();
+			is_socket = false;
 			/* пробуем переподключиться*/
             connect_api(); 
 			t.wasClean ? console.log("Соединение с сервером API закрыто чисто") : console.log("Обрыв соединения с сервером API"), 
@@ -267,8 +268,6 @@ function injected_main() {
 			is_api_socket = false;
         }
     }
-	
-	//connect_api();
 	
 	chrome.storage.local.get("olymptradeapiwsport", function(result) {
 		//var currentColor = 

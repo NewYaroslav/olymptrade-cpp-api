@@ -241,9 +241,9 @@ namespace olymp_trade {
             if(!current_connection) return;
             current_connection->send(message, [&](const SimpleWeb::error_code &ec) {
                 if(ec) {
-                    if(is_cout_log) std::cout << "OlympTradeApi Server: Error sending message. " <<
                     // See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
-                    "Error: " << ec << ", error message: " << ec.message() << std::endl;
+                    if(is_cout_log) std::cout << "OlympTradeApi Server: Error sending message. " <<
+                        "Error: " << ec << ", error message: " << ec.message() << std::endl;
                 }
             });
         }
@@ -796,7 +796,6 @@ namespace olymp_trade {
             is_error = false;
             server_future = std::async(std::launch::async,[&, port]() {
                 while(!is_command_server_stop) {
-                    //WsServer server;
                     is_open_connect = false;
                     {
                         std::lock_guard<std::mutex> lock(server_mutex);
@@ -807,28 +806,26 @@ namespace olymp_trade {
                         /* принимаем сообщения */
                         olymptrade.on_message = [&](std::shared_ptr<WsServer::Connection> connection, std::shared_ptr<WsServer::InMessage> in_message) {
                             auto out_message = in_message->string();
-                            //if(is_cout_log) std::cout << "OlympTradeApi Server: Message received: \"" << out_message << "\" from " << connection.get() << std::endl;
-                            //std::cout << "get meesage" << std::endl;
+                            // if(is_cout_log) std::cout << "OlympTradeApi Server: Message received: \"" << out_message << "\" from " << connection.get() << std::endl;
                             try {
                                 json j = json::parse(out_message);
-
                                 while(true) {
                                     if(parse_olymptrade(j)) break;
                                     if(parse_amount_limits(j)) break;
                                     if(parse_values(j)) break;
                                     if(parse_user(j)) break;
                                     if(parse_candle_history(j)) break;
-                                    if(j["connection_status"] == "ok") {
+                                    if(!j.is_array() && j["connection_status"] == "ok") {
                                         is_connected = true;
                                         is_error = false;
                                         break;
                                     } else
-                                    if(j["connection_status"] == "error") {
+                                    if(!j.is_array() && j["connection_status"] == "error") {
                                         is_error = true;
                                         is_connected = false;
                                         break;
                                     } else
-                                    if(j["candle-history"] == "error") {
+                                    if(!j.is_array() && j["candle-history"] == "error") {
                                         is_error_hist_candles = true;
                                         break;
                                     }
@@ -914,6 +911,13 @@ namespace olymp_trade {
 
                         // See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
                         olymptrade.on_error = [&](std::shared_ptr<WsServer::Connection> connection, const SimpleWeb::error_code &ec) {
+                            {
+                                std::lock_guard<std::mutex> lock(current_connection_mutex);
+                                if(current_connection.get() == connection.get()) {
+                                    is_connected = false;
+                                    current_connection.reset();
+                                }
+                            }
                             is_error = true;
                             if(is_cout_log) std::cout << "OlympTradeApi Server: Error in connection " << connection.get() << ". "
                             << "Error: " << ec << ", error message: " << ec.message() << std::endl;
@@ -1051,7 +1055,7 @@ namespace olymp_trade {
          * \return вернет true, если соединение есть, иначе произошла ошибка
          */
         inline bool wait() {
-            static xtime::timestamp_t timestamp_start = 0;
+            xtime::timestamp_t timestamp_start = 0;
             while(!is_error && !is_connected) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 if(is_open_connect) {
@@ -1061,6 +1065,7 @@ namespace olymp_trade {
                         std::lock_guard<std::mutex> lock(server_mutex);
                         if(server) server->stop();
                         timestamp_start = 0;
+                        std::cerr << "OlympTradeApi::wait() timeout exceeded" << std::endl;
                     }
                 }
                 if(is_command_server_stop) return false;
