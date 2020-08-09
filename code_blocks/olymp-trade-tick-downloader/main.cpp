@@ -207,8 +207,8 @@ int main(int argc, char **argv) {
         std::ofstream file(file_name);
         /* создаем таблицу для сохранения результатов */
         bf::StreamTable st(file);
-        st.add_col(30); // метка времени
-        st.add_col(30); // цена
+        st.add_col(15); // метка времени
+        st.add_col(15); // цена
         st.set_delim_col(false);
         st.make_border_ext(false);//обязательно, иначе будут лишние пустые строки
         st.set_delim_row(false);//обязательно, иначе будут лишние пустые строки
@@ -257,14 +257,16 @@ int main(int argc, char **argv) {
 
             /* теперь загружаем данные */
             std::map<xtime::timestamp_t, xquotes_common::Candle> candles;
-            for(uint32_t f = 0; f < 180; ++f) {
+            const uint64_t limit = 600;
+            const uint64_t fragment = xtime::SECONDS_IN_DAY/limit;
+            for(uint32_t f = 0; f < fragment; ++f) {
                 std::vector<xquotes_common::Candle> candles_f;
                 int err_candles = xquotes_common::OK;
                 for(uint32_t a = 0; a < 10; ++a) {
                     err_candles = olymptrade.get_historical_data(
                         raw_list_symbol[symbol],
-                        t + (f * 480),
-                        t + (f * 480) + (480 - 1),
+                        t + (f * limit),
+                        t + (f * limit) + (limit - 1),
                         1,
                         candles_f);
                     if(err_candles == xquotes_common::OK) break;
@@ -273,8 +275,8 @@ int main(int argc, char **argv) {
                 }
                 if(err_candles != xquotes_common::OK) {
                     std::cerr << "error receiving symbol data: " << raw_list_symbol[symbol]
-                    << " " << xtime::get_str_date_time(t) << " - "
-                    << xtime::get_str_date_time(t + f * 480 - 1) << std::endl;
+                        << " " << xtime::get_str_date_time(t) << " - "
+                        << xtime::get_str_date_time(t + (f * limit) + (limit - 1)) << std::endl;
                     return EXIT_FAILURE;
                 }
                 /* подготавливаем данные */

@@ -1383,8 +1383,8 @@ namespace olymp_trade {
             if(timeframe == 1) {
                 limit = date_stop - date_start + 1;
             }
-            std::cout << "limit " << limit << " date_stop - date_start + 1 " << (date_stop - date_start + 1) << std::endl;
-            std::cout << "timeframe " << timeframe << std::endl;
+            //std::cout << "limit " << limit << " date_stop - date_start + 1 " << (date_stop - date_start + 1) << std::endl;
+            //std::cout << "timeframe " << timeframe << std::endl;
             json j;
             j["cmd"] = "candle-history";
             j["pair"] = symbol_name;

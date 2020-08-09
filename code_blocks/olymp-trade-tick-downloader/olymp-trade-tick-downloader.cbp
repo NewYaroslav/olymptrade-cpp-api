@@ -64,6 +64,7 @@
 		<Unit filename="../../include/base36.h" />
 		<Unit filename="../../include/olymp-trade-api-common.hpp" />
 		<Unit filename="../../include/olymp-trade-api.hpp" />
+		<Unit filename="../../lib/banana-filesystem-cpp/include/banana_filesystem_stream_table.hpp" />
 		<Unit filename="../../lib/xtime_cpp/src/xtime.cpp" />
 		<Unit filename="../../lib/xtime_cpp/src/xtime.hpp" />
 		<Unit filename="main.cpp" />
