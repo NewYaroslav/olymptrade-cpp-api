@@ -38,6 +38,8 @@ var is_last_api_socket = false;
 var is_error = false;
 var is_last_error = false;
 
+var is_unsubscribe = false;
+
 function getUuid() {
     return(Date.now().toString(36)+Math.random().toString(36).substr(2,12)).toUpperCase()
 }
@@ -49,6 +51,7 @@ function injected_main() {
 
 	// функция для запуска потока котировок
 	function quotes_stream(new_socket, symbol_name, to_timestamp) {
+		is_unsubscribe = false;
 		new_socket = new WebSocket("wss://" + broker_domain + "/ds/v6"), new_socket.onopen = function() {
             console.log("Соединение " + symbol_name + " установлено."), 
 			/* для версии v5 
@@ -64,19 +67,20 @@ function injected_main() {
 			
         }, new_socket.onclose = function(t) {
 			// заново открываем соединение
-            if(is_api_socket) {
+            if(is_api_socket && !is_unsubscribe) {
 				quotes_stream(new_socket, symbol_name, to_timestamp);
 			}
 			t.wasClean ? console.log("Соединение " + symbol_name + " закрыто чисто") : console.log("Обрыв соединения"), 
 			console.log("Код: " + t.code + " причина: " + t.reason);
         },  new_socket.onmessage = function(t) {
-			if(is_api_socket) {
+			if(is_unsubscribe) new_socket.close();
+			else if(is_api_socket) {
 				// сначала фильтруем сигналы, отделяем только поток котировок
 				var arr = JSON.parse(t.data);
 				if(arr[0].e == 1 || arr[0].e == 2 || arr[0].e == 3 || arr[0].e == 4) {
 					api_socket.send(t.data);
 				}
-			} else new_socket.close(); 		
+			} else new_socket.close(); 	
 			// console.log("Получены данные " + symbol_name + ": " + t.data);
         },  new_socket.onerror = function(t) {
 			console.log("Ошибка " + symbol_name + ": " + t.message);
@@ -84,9 +88,20 @@ function injected_main() {
 	}
 	
 	function close_all_quotes_stream() {
-		socket_array.forEach(function(item, index, array) {
-			if(socket_array[index]) socket_array[index].close();
-		});
+		console.log("Закрытие потока котировок");
+		is_unsubscribe = true;
+		/*
+		try {
+			socket_array.forEach(function(item, index, array) {
+				//if(socket_array[index]) socket_array[index].close();
+				item.close();
+			});
+			console.log("Поток котировок закрыт");
+		}
+		catch(error) {
+			console.log("Ошибка закрытия потока котировок " + error);
+		}
+		*/
 	}
 	
 	function connect_broker() {
@@ -180,6 +195,7 @@ function injected_main() {
 			is_api_socket = false;
 			/* закрываем соединение с брокером */
 			if(is_socket) socket.close();
+			close_all_quotes_stream();
 			is_socket = false;
 			/* пробуем переподключиться*/
             connect_api(); 
@@ -202,6 +218,10 @@ function injected_main() {
 				if(is_socket) {
 					quotes_stream(socket_array[idx], symbol, to_timestamp);
 				}
+			} else
+			/* обрабатываем команды API: отписаться от потока котировок */
+			if(api_message.cmd == "unsubscribe") {
+				close_all_quotes_stream();
 			} else
 			/* поменять тип счета */
 			if(api_message.cmd == "set-money-group") {
@@ -258,6 +278,40 @@ function injected_main() {
 					}
 				}
 			} else
+				/* загрузить исторические данные */
+			if(api_message.cmd == "candle-history") {
+				var size = api_message.size;
+				var pair = api_message.pair;
+				var from = api_message.from;
+				var to = api_message.to;
+				var limit = api_message.limit;
+				var rt = new XMLHttpRequest;
+				var upload = '{"pair":"' + pair + '","size":' + size + ',"from":'+ from + ',"to":' + to + ',"limit":' + limit + '}'
+				console.log("upload: " + upload);
+				
+				rt.open("POST", "https://api.olymptrade.com/v3/cabinet/candle-history", !0), 
+				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+				rt.setRequestHeader('Accept', 'application/json, text/plain, */*');
+				rt.setRequestHeader('X-Request-Type', 'Api-Request');
+				rt.setRequestHeader('X-Request-Project', 'bo');
+				rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+				rt.send(upload), 
+				rt.onreadystatechange = function() {
+					if (4 == rt.readyState) {
+						if (500 == rt.status) {
+							api_socket.send('{"candle-history":{"data":[]}}');
+						} else
+						if (200 != rt.status) {
+							api_socket.send('{"candle-history":"error"}');
+							console.log(rt.status + ": " + rt.statusText);
+							is_error = true;
+						} else {
+							console.log('{"candle-history":'+rt.responseText+'}');
+							api_socket.send('{"candle-history":'+rt.responseText+'}');
+						}
+					}
+				}
+			} else
 			/* если была получена не коамнда API, просто отсылаем данные */
 			if(is_socket) {
 				socket.send(t.data);
@@ -265,6 +319,7 @@ function injected_main() {
         }, api_socket.onerror = function(t) {
             console.log("Ошибка (сервер API) " + t.message);
 			if(is_socket) socket.close();
+			close_all_quotes_stream();
 			is_api_socket = false;
         }
     }

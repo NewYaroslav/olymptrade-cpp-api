@@ -91,7 +91,7 @@ namespace olymp_trade {
         }
 
         std::atomic<double> bets_last_timestamp = ATOMIC_VAR_INIT(0.0d);/**< Последняя метка времени открытия сделки */
-        std::atomic<double> bets_delay = ATOMIC_VAR_INIT(1.0d);         /**< Задержка между открытием сделок */
+        std::atomic<double> bets_delay = ATOMIC_VAR_INIT(1.5d);         /**< Задержка между открытием сделок */
 
         std::future<void> server_future;
         std::atomic<bool> is_command_server_stop;   /**< Команда на остановку сервера */
@@ -104,9 +104,9 @@ namespace olymp_trade {
         std::mutex current_connection_mutex;
         std::shared_ptr<WsServer::Connection> current_connection;   /**< Текущее соединение */
 
-        std::atomic<bool> is_connected; /**< Флаг установленного соединения */
-        std::atomic<bool> is_open_connect;
-        std::atomic<bool> is_error;
+        std::atomic<bool> is_connected;     /**< Флаг установленного соединения */
+        std::atomic<bool> is_open_connect;  /**<  */
+        std::atomic<bool> is_error;         /**<  */
 
         /* все для расчета смещения времени */
         const uint32_t array_offset_timestamp_size = 256;
@@ -161,7 +161,7 @@ namespace olymp_trade {
         std::map<uint64_t, std::string> broker_bet_id_to_uuid;
 
         std::mutex bets_id_counter_mutex;
-        uint64_t bets_id_counter = 0;   /**< Счетчик номера сделок, открытых через API */
+        uint64_t bets_id_counter = 0;       /**< Счетчик номера сделок, открытых через API */
 
         /* все про валютные пары */
         class SymbolSpec {
@@ -377,40 +377,46 @@ namespace olymp_trade {
         };
 
         bool parse_candle_history(json &j) {
-            if(j.find("data")!= j.end() && j["data"].is_array()) {
-                std::vector<CANDLE_TYPE> temp_candles;
-                bool is_data = false;
-                try {
-                    for(size_t i = 0; i < j["data"].size(); ++i) {
-                        const double open = j["data"][i]["open"];
-                        const double high = j["data"][i]["high"];
-                        const double low = j["data"][i]["low"];
-                        const double close = j["data"][i]["close"];
-                        xtime::timestamp_t timestamp = j["data"][i]["time"];
-                        temp_candles.push_back(CANDLE_TYPE(open, high, low, close, timestamp));
+            auto it_candles = j.find("candle-history");
+            if(it_candles != j.end() && it_candles->is_object()) {
+                auto it_data = it_candles->find("data");
+                if(it_data != it_candles->end() && it_data->is_array()) {
+                    json j_data = *it_data;
+                    std::vector<CANDLE_TYPE> temp_candles;
+                    bool is_data = false;
+                    try {
+                        const size_t data_size = j_data.size();
+                        for(size_t i = 0; i < data_size; ++i) {
+                            const double open = j_data[i]["open"];
+                            const double high = j_data[i]["high"];
+                            const double low = j_data[i]["low"];
+                            const double close = j_data[i]["close"];
+                            xtime::timestamp_t timestamp = j_data[i]["time"];
+                            temp_candles.push_back(CANDLE_TYPE(open, high, low, close, timestamp));
+                        }
+                        is_data = true;
                     }
-                    is_data = true;
-                }
-                catch(const json::parse_error& e) {
-                    std::cerr << "OlympTradeApi::parse_candle_history json::parse_error, what: " << e.what()
-                       << " exception_id: " << e.id << std::endl;
-                }
-                catch(json::out_of_range& e) {
-                    std::cerr << "OlympTradeApi::parse_candle_history json::out_of_range, what:" << e.what()
-                       << " exception_id: " << e.id << std::endl;
-                }
-                catch(json::type_error& e) {
-                    std::cerr << "OlympTradeApi::parse_candle_history json::type_error, what:" << e.what()
-                       << " exception_id: " << e.id << std::endl;
-                }
-                catch(...) {
-                    std::cerr << "OlympTradeApi::parse_candle_history json error" << std::endl;
-                }
-                if(is_data) {
-                    std::lock_guard<std::mutex> lock(hist_candles_mutex);
-                    hist_candles = temp_candles;
-                    is_hist_candles = true;
-                    return true;
+                    catch(const json::parse_error& e) {
+                        std::cerr << "OlympTradeApi::parse_candle_history json::parse_error, what: " << e.what()
+                           << " exception_id: " << e.id << std::endl;
+                    }
+                    catch(json::out_of_range& e) {
+                        std::cerr << "OlympTradeApi::parse_candle_history json::out_of_range, what:" << e.what()
+                           << " exception_id: " << e.id << std::endl;
+                    }
+                    catch(json::type_error& e) {
+                        std::cerr << "OlympTradeApi::parse_candle_history json::type_error, what:" << e.what()
+                           << " exception_id: " << e.id << std::endl;
+                    }
+                    catch(...) {
+                        std::cerr << "OlympTradeApi::parse_candle_history json error" << std::endl;
+                    }
+                    if(is_data) {
+                        std::lock_guard<std::mutex> lock(hist_candles_mutex);
+                        hist_candles = temp_candles;
+                        is_hist_candles = true;
+                        return true;
+                    }
                 }
             }
             return false;
@@ -562,7 +568,7 @@ namespace olymp_trade {
                         //std::cout << str_id << " : " << j_pairs[i] << "\n";
                         //std::cout << str_id << "\n";
                         symbols_spec[str_id].is_locked = j_pairs[i]["locked"];
-                        symbols_spec[str_id].is_active = j_pairs[i]["active"];
+                        //symbols_spec[str_id].is_active = j_pairs[i]["active"]; // устарело
                         symbols_spec[str_id].is_locked_trading = j_pairs[i]["locked_trading"];
 
                         symbols_spec[str_id].winperc = j_pairs[i]["winperc"];
@@ -592,28 +598,44 @@ namespace olymp_trade {
                     if(j[i]["e"] == 1) {
                         //std::cout << "1" << std::endl;
                         for(size_t l = 0; l < j[i]["d"].size(); ++l) {
-                            const std::string symbol_name = j[i]["d"][l]["p"];
-                            const xtime::ftimestamp_t timestamp = j[i]["d"][l]["t"];
+                            olymp_trade_common::StreamTick tick;
+                            tick.symbol = j[i]["d"][l]["p"];
+                            tick.timestamp = j[i]["d"][l]["t"];
 
+                            /* замеряем смещение времени */
                             const xtime::ftimestamp_t pc_time = xtime::get_ftimestamp();
-                            const xtime::ftimestamp_t offset_time = timestamp - pc_time;
+                            const xtime::ftimestamp_t offset_time = tick.timestamp - pc_time;
                             update_offset_timestamp(offset_time);
 
-                            const xtime::timestamp_t bar_timestamp = xtime::get_first_timestamp_minute(timestamp);
-                            const double price = j[i]["d"][l]["q"];
+                            const xtime::timestamp_t bar_timestamp = xtime::get_first_timestamp_minute(tick.timestamp);
+                            tick.price = j[i]["d"][l]["q"];
+
+                            /* получаем точность котировок */
+                            uint32_t precision = 0;
+                            {
+                                std::lock_guard<std::mutex> lock(symbols_spec_mutex);
+                                auto it_spec = symbols_spec.find(tick.symbol);
+                                if(it_spec != symbols_spec.end()) {
+                                    precision = it_spec->second.precision;
+                                }
+                            }
+                            tick.precision = precision;
+
+                            /* обрабатываем функцию обратного вызова поступления тика */
+                            if(on_tick != nullptr) on_tick(tick);
 
                             std::lock_guard<std::mutex> lock(map_candles_mutex);
-                            auto it_symbol = map_candles.find(symbol_name);
+                            auto it_symbol = map_candles.find(tick.symbol);
                             if(it_symbol == map_candles.end()) {
-                                map_candles[symbol_name][bar_timestamp] = CANDLE_TYPE(price,price,price,price,bar_timestamp);
+                                map_candles[tick.symbol][bar_timestamp] = CANDLE_TYPE(tick.price,tick.price,tick.price,tick.price,bar_timestamp);
                             } else
-                            if(map_candles[symbol_name].find(bar_timestamp) == map_candles[symbol_name].end()) {
-                                map_candles[symbol_name][bar_timestamp] = CANDLE_TYPE(price,price,price,price,bar_timestamp);
+                            if(map_candles[tick.symbol].find(bar_timestamp) == map_candles[tick.symbol].end()) {
+                                map_candles[tick.symbol][bar_timestamp] = CANDLE_TYPE(tick.price,tick.price,tick.price,tick.price,bar_timestamp);
                             } else {
-                                auto &candle = map_candles[symbol_name][bar_timestamp];
-                                candle.close = price;
-                                if(price > candle.high) candle.high = price;
-                                else if(price < candle.low) candle.low = price;
+                                auto &candle = map_candles[tick.symbol][bar_timestamp];
+                                candle.close = tick.price;
+                                if(tick.price > candle.high) candle.high = tick.price;
+                                else if(tick.price < candle.low) candle.low = tick.price;
                             }
                         }
                     } else
@@ -825,7 +847,7 @@ namespace olymp_trade {
                                         is_connected = false;
                                         break;
                                     } else
-                                    if(!j.is_array() && j["candle-history"] == "error") {
+                                    if(!j.is_array() && j.is_string() && j["candle-history"] == "error") {
                                         is_error_hist_candles = true;
                                         break;
                                     }
@@ -933,6 +955,8 @@ namespace olymp_trade {
         }
 
     public:
+
+        std::function<void(const olymp_trade_common::StreamTick &tick)> on_tick = nullptr;
 
         /** \brief Конструктор класса API
          *
@@ -1136,6 +1160,18 @@ namespace olymp_trade {
                     send(j.dump());
                 }
             }
+            return true;
+        }
+
+        /** \brief Отписаться от котировок
+         *
+         * \return Вернет true, если подключение есть и сообщения были переданы
+         */
+        bool unsubscribe_quotes_stream() {
+            if(!is_connected) return is_connected;
+            json j;
+            j["cmd"] = "unsubscribe";
+            send(j.dump());
             return true;
         }
 
@@ -1343,7 +1379,12 @@ namespace olymp_trade {
                 date_start = xtime::get_first_timestamp_minute(date_start);
                 date_stop = xtime::get_first_timestamp_minute(date_stop);
                 limit = ((date_stop - date_start) / xtime::SECONDS_IN_MINUTE) + 1;
+            } else
+            if(timeframe == 1) {
+                limit = date_stop - date_start + 1;
             }
+            std::cout << "limit " << limit << " date_stop - date_start + 1 " << (date_stop - date_start + 1) << std::endl;
+            std::cout << "timeframe " << timeframe << std::endl;
             json j;
             j["cmd"] = "candle-history";
             j["pair"] = symbol_name;

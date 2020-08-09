@@ -114,6 +114,17 @@ namespace olymp_trade_common {
         }
     };
 
+    /** \brief Класс для хранения данных тика
+     */
+    class StreamTick {
+	public:
+		std::string symbol;
+		double price = 0;
+		xtime::ftimestamp_t timestamp = 0;
+        uint32_t precision = 0;
+		StreamTick() {};
+	};
+
     /// Состояния сделки
     enum class BetStatus {
         UNKNOWN_STATE,

@@ -1,6 +1,7 @@
 #include <iostream>
 #include "olymp-trade-api.hpp"
 #include "xquotes_history.hpp"
+#include "banana_filesystem_stream_table.hpp"
 #include "xtime.hpp"
 #include <fstream>
 #include <dir.h>
@@ -23,7 +24,7 @@ int main(int argc, char **argv) {
     std::string json_file;
     std::string path_store;
     std::string environmental_variable;
-    bool is_use_day_off = false;
+    bool is_use_day_off = true;
     bool is_use_current_day = false;
 
     if(!olymp_trade::process_arguments(
@@ -182,6 +183,7 @@ int main(int argc, char **argv) {
     /* создаем папку для записи котировок */
     bf::create_directory(path_store);
 
+#if(0)
     /* создаем хранилища котировок */
     std::vector<std::shared_ptr<xquotes_history::QuotesHistory<>>> hists(raw_list_symbol.size());
     for(uint32_t symbol = 0;
@@ -196,19 +198,26 @@ int main(int argc, char **argv) {
             xquotes_history::PRICE_OHLC,
             xquotes_history::USE_COMPRESSION);
     }
-
+#endif
     /* скачиваем исторические данные котировок */
-    for(uint32_t
-        symbol = 0;
-        symbol < raw_list_symbol.size();
-        ++symbol) {
+    for(uint32_t symbol = 0; symbol < raw_list_symbol.size(); ++symbol) {
+        std::string file_name =
+            path_store + "/" +
+            raw_list_symbol[symbol] + ".csv";
+        std::ofstream file(file_name);
+        /* создаем таблицу для сохранения результатов */
+        bf::StreamTable st(file);
+        st.add_col(30); // метка времени
+        st.add_col(30); // цена
+        st.set_delim_col(false);
+        st.make_border_ext(false);//обязательно, иначе будут лишние пустые строки
+        st.set_delim_row(false);//обязательно, иначе будут лишние пустые строки
         /* получаем время уже загруженных даных
          * функция get_min_max_day_timestamp позволяет получить метки времени данных по дате,
           * т.е. переменные min_timestamp и max_timestampтолько содержат начало дня
          */
-        int err = xquotes_common::OK;
+        int err = -1;
         xtime::timestamp_t min_timestamp = 0, max_timestamp = 0;
-        err = hists[symbol]->get_min_max_day_timestamp(min_timestamp, max_timestamp);
 
         if(err != xquotes_common::OK) {
             std::cout << "search for the starting date symbol: "
@@ -241,95 +250,50 @@ int main(int argc, char **argv) {
         const xtime::timestamp_t stop_date = xtime::get_first_timestamp_day(timestamp);
         for(xtime::timestamp_t t = xtime::get_first_timestamp_day(min_timestamp); t <= stop_date; t += xtime::SECONDS_IN_DAY) {
             /* пропускаем данные, которые нет смысла загружать повторно */
-            if(t < max_timestamp && hists[symbol]->check_timestamp(t)) continue;
+            //if(t < max_timestamp && hists[symbol]->check_timestamp(t)) continue;
+            if(t < max_timestamp) continue;
             /* пропускаем выходной день, если указано его пропускать*/
             if(!is_use_day_off && xtime::is_day_off(t)) continue;
 
             /* теперь загружаем данные */
-            std::vector<xquotes_common::Candle> candles_1;
-            std::vector<xquotes_common::Candle> candles_2;
-            std::vector<xquotes_common::Candle> candles_3;
-            int err_candles = xquotes_common::OK;
-            for(uint32_t a = 0; a < 10; ++a) {
-                err_candles = olymptrade.get_historical_data(
-                    raw_list_symbol[symbol],
-                    t,
-                    t + xtime::SECONDS_IN_MINUTE * 480 - xtime::SECONDS_IN_MINUTE,
-                    xtime::SECONDS_IN_MINUTE,
-                    candles_1);
-                if(err_candles == xquotes_common::OK) break;
-                std::cerr << "error receiving symbol data (1): " << raw_list_symbol[symbol] << " repeat..." << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            std::map<xtime::timestamp_t, xquotes_common::Candle> candles;
+            for(uint32_t f = 0; f < 180; ++f) {
+                std::vector<xquotes_common::Candle> candles_f;
+                int err_candles = xquotes_common::OK;
+                for(uint32_t a = 0; a < 10; ++a) {
+                    err_candles = olymptrade.get_historical_data(
+                        raw_list_symbol[symbol],
+                        t + (f * 480),
+                        t + (f * 480) + (480 - 1),
+                        1,
+                        candles_f);
+                    if(err_candles == xquotes_common::OK) break;
+                    std::cerr << "error receiving symbol data (1): " << raw_list_symbol[symbol] << " repeat..." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                }
+                if(err_candles != xquotes_common::OK) {
+                    std::cerr << "error receiving symbol data: " << raw_list_symbol[symbol]
+                    << " " << xtime::get_str_date_time(t) << " - "
+                    << xtime::get_str_date_time(t + f * 480 - 1) << std::endl;
+                    return EXIT_FAILURE;
+                }
+                /* подготавливаем данные */
+                for(size_t i = 0; i < candles_f.size(); ++i) {
+                    candles[candles_f[i].timestamp] = candles_f[i];
+                }
             }
-            if(err_candles != xquotes_common::OK) {
-                std::cerr << "error receiving symbol data: " << raw_list_symbol[symbol]
-                << " " << xtime::get_str_date_time(t) << " - "
-                << xtime::get_str_date_time(t + xtime::SECONDS_IN_MINUTE * 480 - xtime::SECONDS_IN_MINUTE) << std::endl;
-                return EXIT_FAILURE;
-            }
-            for(uint32_t a = 0; a < 10; ++a) {
-                err_candles = olymptrade.get_historical_data(
-                    raw_list_symbol[symbol],
-                    t + xtime::SECONDS_IN_MINUTE * 480,
-                    t + xtime::SECONDS_IN_MINUTE * 960 - xtime::SECONDS_IN_MINUTE,
-                    xtime::SECONDS_IN_MINUTE,
-                    candles_2);
-                if(err_candles == xquotes_common::OK) break;
-                std::cerr << "error receiving symbol data (2): " << raw_list_symbol[symbol] << " repeat..." << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-            }
-            if(err_candles != xquotes_common::OK) {
-                std::cerr << "error receiving symbol data: " << raw_list_symbol[symbol]
-                << " " << xtime::get_str_date_time(t + xtime::SECONDS_IN_MINUTE * 480) << " - "
-                << xtime::get_str_date_time(t + xtime::SECONDS_IN_MINUTE * 960 - xtime::SECONDS_IN_MINUTE) << std::endl;
-                return EXIT_FAILURE;
-            }
-            for(uint32_t a = 0; a < 10; ++a) {
-                err_candles = olymptrade.get_historical_data(
-                    raw_list_symbol[symbol],
-                    t + xtime::SECONDS_IN_MINUTE * 960,
-                    t + xtime::SECONDS_IN_MINUTE * 1440 - xtime::SECONDS_IN_MINUTE,
-                    xtime::SECONDS_IN_MINUTE,
-                    candles_3);
-                if(err_candles == xquotes_common::OK) break;
-                std::cerr << "error receiving symbol data (3): " << raw_list_symbol[symbol] << " repeat..." << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-            }
-            if(err_candles != xquotes_common::OK) {
-                std::cerr << "error receiving symbol data: " << raw_list_symbol[symbol]
-                << " " << xtime::get_str_date_time(t + xtime::SECONDS_IN_MINUTE * 960) << " - "
-                << xtime::get_str_date_time(t + xtime::SECONDS_IN_MINUTE * 1440 - xtime::SECONDS_IN_MINUTE) << std::endl;
-                return EXIT_FAILURE;
-            }
-
-            /* подготавливаем данные */
-            std::array<xquotes_common::Candle, xtime::MINUTES_IN_DAY> bars_inside_day;
-            for(size_t i = 0; i < candles_1.size(); ++i) {
-                bars_inside_day[xtime::get_minute_day(candles_1[i].timestamp)] = candles_1[i];
-            }
-            for(size_t i = 0; i < candles_2.size(); ++i) {
-                bars_inside_day[xtime::get_minute_day(candles_2[i].timestamp)] = candles_2[i];
-            }
-            for(size_t i = 0; i < candles_3.size(); ++i) {
-                bars_inside_day[xtime::get_minute_day(candles_3[i].timestamp)] = candles_3[i];
-            }
-
-            const size_t candles_size = candles_1.size() + candles_2.size() + candles_3.size();
 
             /* записываем данные */
-            if(candles_size > 0) {
-                err = hists[symbol]->write_candles(bars_inside_day, t);
-                xtime::timestamp_t end_timestamp =
-                    candles_3.size() > 0 ? candles_3.back().timestamp :
-                    candles_2.size() > 0 ? candles_2.back().timestamp :
-                    candles_1.size() > 0 ? candles_1.back().timestamp :
-                    t;
+            if(candles.size() > 0) {
+                for(auto it : candles) {
+                    st << it.first << it.second.close;
+                }
                 olymp_trade::print_line(
                         "write " +
                         raw_list_symbol[symbol] +
                         " " +
                         xtime::get_str_date(t) +
-                        " - " + xtime::get_str_date_time(end_timestamp) +
+                        " - " + xtime::get_str_date_time(t + xtime::SECONDS_IN_DAY - 1) +
                         " code " +
                         std::to_string(err));
             } else {
@@ -340,7 +304,7 @@ int main(int argc, char **argv) {
                         xtime::get_str_date(t));
             }
         }
-        hists[symbol]->save();
+        file.close();
         std::cout
                 << "data writing to file completed: " << raw_list_symbol[symbol]
                 << " " << xtime::get_str_date(xtime::get_first_timestamp_day(min_timestamp))

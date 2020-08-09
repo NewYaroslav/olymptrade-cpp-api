@@ -2,12 +2,12 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="olymp-trade-downloader" />
+		<Option title="olymp-trade-tick-downloader" />
 		<Option pch_mode="2" />
 		<Option compiler="mingw_64_7_3_0" />
 		<Build>
 			<Target title="Release">
-				<Option output="olymp-trade-downloader-11" prefix_auto="1" extension_auto="1" />
+				<Option output="olymp-trade-tick-downloader-10" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Release/" />
 				<Option type="1" />
 				<Option compiler="mingw_64_7_3_0" />
