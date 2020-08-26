@@ -173,6 +173,7 @@ function injected_main() {
 			rt.setRequestHeader('X-Request-Type', 'Api-Request'),
 			rt.setRequestHeader('X-Request-Project', 'bo'),
 			rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest'),
+			rt.withCredentials = true, // ответ зачем rt.withCredentials = true тут: https://coderoad.ru/14221722/Set-Cookie-%D0%B2-%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B5-%D1%81-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%BE%D0%BC-Ajax-%D1%87%D0%B5%D1%80%D0%B5%D0%B7-CORS
 			rt.send(upload_user_values), 
 			rt.onreadystatechange = function() {
 				if (4 == rt.readyState) {
@@ -231,13 +232,14 @@ function injected_main() {
 				var upload = '{"group":"' + group + '","account_id":' + account_id + '}';
 				console.log("json_upload " + upload);
 				
-				rt.open("POST", "https://api.olymptrade.com/v4/user/set-money-group", !0), 
+				rt.open("POST", "https://api.olymptrade.com/v4/user/set-money-group", !0); 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 				rt.setRequestHeader('Accept', 'application/json, text/plain, */*');
 				rt.setRequestHeader('X-Request-Type', 'Api-Request');
 				rt.setRequestHeader('X-Request-Project', 'bo');
 				rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-				rt.send(upload), 
+				rt.withCredentials = true;
+				rt.send(upload); 
 				rt.onreadystatechange = function() {
 					if (4 == rt.readyState) {
 						if (200 != rt.status) {
@@ -258,13 +260,14 @@ function injected_main() {
 				var upload = '{"account_id":' + account_id + '}';
 				//console.log("json_upload " + upload);
 				
-				rt.open("POST", "https://api.olymptrade.com/v1/cabinet/amount-limits", !0), 
+				rt.open("POST", "https://api.olymptrade.com/v1/cabinet/amount-limits", !0); 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 				rt.setRequestHeader('Accept', 'application/json, text/plain, */*');
 				rt.setRequestHeader('X-Request-Type', 'Api-Request');
 				rt.setRequestHeader('X-Request-Project', 'bo');
 				rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-				rt.send(upload), 
+				rt.withCredentials = true;
+				rt.send(upload);
 				rt.onreadystatechange = function() {
 					if (4 == rt.readyState) {
 						if (200 != rt.status) {
@@ -289,13 +292,14 @@ function injected_main() {
 				var upload = '{"pair":"' + pair + '","size":' + size + ',"from":'+ from + ',"to":' + to + ',"limit":' + limit + '}'
 				console.log("upload: " + upload);
 				
-				rt.open("POST", "https://api.olymptrade.com/v3/cabinet/candle-history", !0), 
+				rt.open("POST", "https://api.olymptrade.com/v3/cabinet/candle-history", !0); 
 				rt.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 				rt.setRequestHeader('Accept', 'application/json, text/plain, */*');
 				rt.setRequestHeader('X-Request-Type', 'Api-Request');
 				rt.setRequestHeader('X-Request-Project', 'bo');
 				rt.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-				rt.send(upload), 
+				rt.withCredentials = true;
+				rt.send(upload); 
 				rt.onreadystatechange = function() {
 					if (4 == rt.readyState) {
 						if (500 == rt.status) {
