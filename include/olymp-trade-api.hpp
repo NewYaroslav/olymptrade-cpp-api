@@ -56,6 +56,7 @@ namespace olymp_trade {
         };
 
     private:
+        uint32_t api_port = 8080;
 
         Limit limit;
         std::mutex limit_mutex;
@@ -377,46 +378,40 @@ namespace olymp_trade {
         };
 
         bool parse_candle_history(json &j) {
-            auto it_candles = j.find("candle-history");
-            if(it_candles != j.end() && it_candles->is_object()) {
-                auto it_data = it_candles->find("data");
-                if(it_data != it_candles->end() && it_data->is_array()) {
-                    json j_data = *it_data;
-                    std::vector<CANDLE_TYPE> temp_candles;
-                    bool is_data = false;
-                    try {
-                        const size_t data_size = j_data.size();
-                        for(size_t i = 0; i < data_size; ++i) {
-                            const double open = j_data[i]["open"];
-                            const double high = j_data[i]["high"];
-                            const double low = j_data[i]["low"];
-                            const double close = j_data[i]["close"];
-                            xtime::timestamp_t timestamp = j_data[i]["time"];
-                            temp_candles.push_back(CANDLE_TYPE(open, high, low, close, timestamp));
-                        }
-                        is_data = true;
+            if(j.find("data")!= j.end() && j["data"].is_array()) {
+                std::vector<CANDLE_TYPE> temp_candles;
+                bool is_data = false;
+                try {
+                    for(size_t i = 0; i < j["data"].size(); ++i) {
+                        const double open = j["data"][i]["open"];
+                        const double high = j["data"][i]["high"];
+                        const double low = j["data"][i]["low"];
+                        const double close = j["data"][i]["close"];
+                        xtime::timestamp_t timestamp = j["data"][i]["time"];
+                        temp_candles.push_back(CANDLE_TYPE(open, high, low, close, timestamp));
                     }
-                    catch(const json::parse_error& e) {
-                        std::cerr << "OlympTradeApi::parse_candle_history json::parse_error, what: " << e.what()
-                           << " exception_id: " << e.id << std::endl;
-                    }
-                    catch(json::out_of_range& e) {
-                        std::cerr << "OlympTradeApi::parse_candle_history json::out_of_range, what:" << e.what()
-                           << " exception_id: " << e.id << std::endl;
-                    }
-                    catch(json::type_error& e) {
-                        std::cerr << "OlympTradeApi::parse_candle_history json::type_error, what:" << e.what()
-                           << " exception_id: " << e.id << std::endl;
-                    }
-                    catch(...) {
-                        std::cerr << "OlympTradeApi::parse_candle_history json error" << std::endl;
-                    }
-                    if(is_data) {
-                        std::lock_guard<std::mutex> lock(hist_candles_mutex);
-                        hist_candles = temp_candles;
-                        is_hist_candles = true;
-                        return true;
-                    }
+                    is_data = true;
+                }
+                catch(const json::parse_error& e) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json::parse_error, what: " << e.what()
+                       << " exception_id: " << e.id << std::endl;
+                }
+                catch(json::out_of_range& e) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json::out_of_range, what:" << e.what()
+                       << " exception_id: " << e.id << std::endl;
+                }
+                catch(json::type_error& e) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json::type_error, what:" << e.what()
+                       << " exception_id: " << e.id << std::endl;
+                }
+                catch(...) {
+                    std::cerr << "OlympTradeApi::parse_candle_history json error" << std::endl;
+                }
+                if(is_data) {
+                    std::lock_guard<std::mutex> lock(hist_candles_mutex);
+                    hist_candles = temp_candles;
+                    is_hist_candles = true;
+                    return true;
                 }
             }
             return false;
@@ -840,6 +835,7 @@ namespace olymp_trade {
                                     if(!j.is_array() && j["connection_status"] == "ok") {
                                         is_connected = true;
                                         is_error = false;
+                                        if(on_start != nullptr) on_start();
                                         break;
                                     } else
                                     if(!j.is_array() && j["connection_status"] == "error") {
@@ -847,7 +843,7 @@ namespace olymp_trade {
                                         is_connected = false;
                                         break;
                                     } else
-                                    if(!j.is_array() && j.is_string() && j["candle-history"] == "error") {
+                                    if(!j.is_array() && j["candle-history"] == "error") {
                                         is_error_hist_candles = true;
                                         break;
                                     }
@@ -957,15 +953,18 @@ namespace olymp_trade {
     public:
 
         std::function<void(const olymp_trade_common::StreamTick &tick)> on_tick = nullptr;
+        std::function<void()> on_start = nullptr;
 
         /** \brief Конструктор класса API
-         *
-         * \param port Порт
+         * \param user_port Порт
          */
-        OlympTradeApi(const uint32_t port) {
+        OlympTradeApi(const uint32_t user_port) : api_port(user_port) {
+        }
+
+        void start() {
             std::vector<std::string> symbol_list;
             const uint32_t number_bars = 0;
-            init_main_thread(port, symbol_list, number_bars);
+            init_main_thread(api_port, symbol_list, number_bars);
         }
 
         ~OlympTradeApi() {
@@ -1379,12 +1378,7 @@ namespace olymp_trade {
                 date_start = xtime::get_first_timestamp_minute(date_start);
                 date_stop = xtime::get_first_timestamp_minute(date_stop);
                 limit = ((date_stop - date_start) / xtime::SECONDS_IN_MINUTE) + 1;
-            } else
-            if(timeframe == 1) {
-                limit = date_stop - date_start + 1;
             }
-            //std::cout << "limit " << limit << " date_stop - date_start + 1 " << (date_stop - date_start + 1) << std::endl;
-            //std::cout << "timeframe " << timeframe << std::endl;
             json j;
             j["cmd"] = "candle-history";
             j["pair"] = symbol_name;
