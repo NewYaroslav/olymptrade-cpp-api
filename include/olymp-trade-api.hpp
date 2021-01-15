@@ -149,15 +149,20 @@ namespace olymp_trade {
         /* параметры аккаунта */
         std::mutex account_mutex;
         std::string currency;
+        std::string email;
+
         std::atomic<double> balance_demo = ATOMIC_VAR_INIT(0.0);
         std::atomic<double> balance_real = ATOMIC_VAR_INIT(0.0);
         std::atomic<uint64_t> account_id_demo = ATOMIC_VAR_INIT(0);
         std::atomic<uint64_t> account_id_real = ATOMIC_VAR_INIT(0);
+        std::atomic<uint64_t> user_id = ATOMIC_VAR_INIT(0);
         std::atomic<bool> is_demo = ATOMIC_VAR_INIT(true);
 
         std::mutex array_bets_mutex;    /**< Мьютекс для блокировки array_bets */
+
         std::map<std::string, Bet> array_bets;
         std::map<uint64_t, std::string> bet_id_to_uuid;
+
         std::mutex broker_bet_id_to_uuid_mutex;
         std::map<uint64_t, std::string> broker_bet_id_to_uuid;
 
@@ -182,6 +187,7 @@ namespace olymp_trade {
 
             SymbolSpec() {};
         };
+
         std::mutex symbols_spec_mutex;
         std::map<std::string, SymbolSpec> symbols_spec;
 
@@ -550,10 +556,15 @@ namespace olymp_trade {
                     json j_money_group = j["data"]["money_group"];
                     std::lock_guard<std::mutex> lock(account_mutex);
                     if(j_data["currency"] != nullptr) currency = j_data["currency"];
+                    if(j_data["email"] != nullptr) email = j_data["email"];
+                    if(j_data["id"] != nullptr) user_id = j_data["id"];
                     if(j_balance["demo"]["amount"] != nullptr) balance_demo = j_balance["demo"]["amount"];
                     if(j_balance["real"]["amount"] != nullptr) balance_real = j_balance["real"]["amount"];
                     if(j_money_group["group"] == "demo") is_demo = true;
-                    else if(j_money_group["group"] == "real") is_demo = false;
+                    else if(j_money_group["group"] == "real") {
+                        account_id_real = (uint64_t)j_money_group["account_id"];
+                        is_demo = false;
+                    }
                 }
                 {
                     json j_pairs = j["data"]["pairs"];
@@ -733,13 +744,20 @@ namespace olymp_trade {
                      * 50 - реальный депозит
                      */
                     if(j[i]["e"] == 50 || j[i]["e"] == 52) {
-                        //std::cout << "50-52" << std::endl;
                         for(size_t l = 0; l < j[i]["d"].size(); ++l) {
                             if(j[i]["d"][l]["account_id"] != nullptr && j[i]["d"][l]["account_id"] > 0) {
                                 if(j[i]["d"][l]["value"] != nullptr) balance_real = (double)j[i]["d"][l]["value"];
                                 account_id_real = (uint64_t)j[i]["d"][l]["account_id"];
                             } else {
                                 if(j[i]["d"][l]["value"] != nullptr) balance_demo = (double)j[i]["d"][l]["value"];
+                            }
+                        }
+                    } else
+                    if(j[i]["e"] == 51 ) {
+                        //std::cout << "50-52" << std::endl;
+                        for(size_t l = 0; l < j[i]["d"].size(); ++l) {
+                            if(j[i]["d"][l]["account_id"] != nullptr && j[i]["d"][l]["account_id"] > 0) {
+                                account_id_real = (uint64_t)j[i]["d"][l]["account_id"];
                             }
                         }
                     } else
@@ -803,14 +821,21 @@ namespace olymp_trade {
             return true;
         }
 
+        /** \brief Инициализация потока для обработки сообщений от сервера
+         * \param port Порт
+         * \param symbol_list Список символов для получения котировок
+         * \param number_bars Количество баров истории
+         */
         void init_main_thread(
                 const uint32_t port,
                 const std::vector<std::string> &symbol_list,
                 const uint32_t number_bars = 1440) {
+
             is_command_server_stop = false;
             is_cout_log = true;
             is_connected = false;
             is_error = false;
+
             server_future = std::async(std::launch::async,[&, port]() {
                 while(!is_command_server_stop) {
                     is_open_connect = false;
@@ -958,7 +983,8 @@ namespace olymp_trade {
         /** \brief Конструктор класса API
          * \param user_port Порт
          */
-        OlympTradeApi(const uint32_t user_port) : api_port(user_port) {
+        OlympTradeApi(const uint32_t user_port) :
+                api_port(user_port) {
         }
 
         void start() {
@@ -1040,6 +1066,29 @@ namespace olymp_trade {
          */
         inline uint64_t get_account_id_real() {
             return account_id_real;
+        }
+
+        /** \brief Получить ID пользователя аккаунта
+         * \return ID пользователя аккаунта
+         */
+        inline uint64_t get_user_id() {
+            return user_id;
+        }
+
+        /** \brief Получить валюту аккаунта
+         * \return валюта аккаунта
+         */
+        inline std::string get_currency() {
+            std::lock_guard<std::mutex> lock(account_mutex);
+            return currency;
+        }
+
+        /** \brief Получить email аккаунта
+         * \return email аккаунта
+         */
+        inline std::string get_email() {
+            std::lock_guard<std::mutex> lock(account_mutex);
+            return email;
         }
 
         /** \brief Проверить, является ли аккаунт Demo
@@ -1201,6 +1250,7 @@ namespace olymp_trade {
             if(!is_connected) return is_connected;
             json j;
             j["cmd"] = "get-amount-limits";
+            //j["account_id"] = (uint64_t)account_id_real;
             j["account_id"] = (uint64_t)account_id_real;
             send(j.dump());
             return true;

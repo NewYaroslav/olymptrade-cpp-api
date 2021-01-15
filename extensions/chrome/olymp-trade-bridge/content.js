@@ -134,7 +134,11 @@ function injected_main() {
 			is_socket = false;
             if(is_api_socket) {
 				api_socket.send('{"connection_status":"reconnecting"}');
-				connect_broker(); 
+				//connect_broker(); 
+				/* делаем перезагрузку страницы */
+				setTimeout(function() {
+					 location.reload();
+				},5000);
 			}
 			t.wasClean ? console.log("Соединение закрыто чисто") : console.log("Обрыв соединения"), 
 			console.log("Код: " + t.code + " причина: " + t.reason);
@@ -152,7 +156,13 @@ function injected_main() {
         }, socket.onerror = function(t) {
 			is_socket = false;
 			if(is_api_socket) {
-				api_socket.send('{"connection_status":"error"}');
+				//api_socket.send('{"connection_status":"error"}');
+				
+				api_socket.send('{"connection_status":"reconnecting"}');
+				/* делаем перезагрузку страницы */
+				setTimeout(function() {
+					 location.reload();
+				},5000);
 			}
 			console.log("Ошибка " + t.message);
         }
@@ -381,14 +391,15 @@ function injected_main() {
 }
 
 function update_second() { 
-	//console.log("СЕКУНДОЧШКУ А! " + getUuid());
+	console.log("перезагрузка страницы");
+	location.reload();
 }
 
-setInterval(update_second, 1000);
+//setInterval(update_second, 10000);
 //setInterval(update_10_second, 10000);// запускать функцию каждую секунду
 
 function try_again() {
-	console.log("try_again!");
+	//console.log("try_again!");
 	injected_main()
 }
 
